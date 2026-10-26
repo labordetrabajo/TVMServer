@@ -1,0 +1,102 @@
+/* Totem Video Manager v0.2 | Identidad GyA Digital.
+   Paleta oficial del manual 2026: #00AEEF / #2F88E4 / #545454.
+   Tipos recomendados: Spartakus (solo si instalada localmente), Readex Pro y Exo 2.
+   No se distribuyen fuentes de terceros en el paquete. */
+@import url('https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&family=Exo+2:wght@400;500;600;700;800&display=swap');
+:root {
+  --gya-celeste:#00AEEF; --gya-azul:#2F88E4; --gya-gris:#545454;
+  --navy:#102842; --navy-light:#1a3c58; --surface:#f4f9fc;
+  --line:#e1edf3; --text:#1e3447; --muted:#63798a;
+  font-family:'Readex Pro','Segoe UI',system-ui,sans-serif;
+  color:var(--text); background:var(--surface);font-synthesis:none;
+}
+*{box-sizing:border-box}
+body{margin:0}
+button,input,select{font:inherit}
+button{cursor:pointer;transition:background .16s ease,transform .16s ease,box-shadow .16s ease}
+button:disabled{opacity:.53;cursor:not-allowed}
+button:focus-visible,a:focus-visible{outline:3px solid #00AEEF;outline-offset:3px}
+h1,h2,h3,.brand-large,.stat strong{font-family:'Spartakus','Exo 2','Readex Pro',sans-serif}
+button.primary{background:var(--gya-celeste);border:1px solid var(--gya-celeste);color:#062b41;padding:11px 18px;border-radius:10px;font-weight:700;box-shadow:0 5px 16px #00aeef26}
+button.primary:hover:not(:disabled){background:#08bff5;box-shadow:0 8px 22px #00aeef36;transform:translateY(-1px)}
+.full{width:100%}
+.ghost{padding:9px 13px;border:1px solid #d8e6ed;background:white;border-radius:9px;color:#2c536a;font-size:12px;font-weight:700}
+.ghost:hover{background:#edfbff}
+.gya-logo{max-width:100%;object-fit:contain;height:auto;display:block}
+.gya-logo-compact{width:158px;height:auto}
+.login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:36px 20px;position:relative;isolation:isolate;overflow:hidden;background:radial-gradient(ellipse at 18% 15%,#175b88 0,transparent 36%),linear-gradient(137deg,#0c2946,#0b3e61 70%,#156a93)}
+.login-screen:before{content:'';position:absolute;inset:auto -14% -21% -14%;height:43%;background:linear-gradient(125deg,#2F88E410,#00AEEF20);transform:rotate(-8deg);border-radius:50%;z-index:-2}
+.login-wave{position:absolute;right:-8%;bottom:-8%;width:min(920px,75vw);height:44%;background:url('/brand/gya-ondas.png') no-repeat center/contain;opacity:.36;z-index:-1;pointer-events:none}
+.login-card{position:relative;width:min(468px,100%);background:white;border-radius:20px;padding:38px 40px 34px;box-shadow:0 25px 75px #06192a66;border-top:5px solid var(--gya-celeste)}
+.login-card-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+.login-card-header .gya-logo{width:190px;height:auto}
+.product-badge{flex-shrink:0;background:#eaf8fd;color:#087da8;font-size:9px;font-weight:800;letter-spacing:1px;border-radius:7px;padding:8px 9px}
+.brand-large{font-weight:800;font-size:24px;line-height:1.14;letter-spacing:-.7px;color:#15344c}
+.login-card>p{color:#647b8a;margin:10px 0 31px;font-size:13px;line-height:1.6}
+.login-card h2{font-size:17px;margin:0 0 19px;color:#1a4058;font-weight:700}
+.login-card form{display:grid;gap:17px}
+.login-card small{display:block;text-align:center;color:#829baa;margin-top:26px;font-size:10px}
+.app-shell{display:grid;grid-template-columns:254px minmax(0,1fr);min-height:100vh}
+.sidebar{background:var(--navy);color:#e7f4fc;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;border-right:1px solid #163e59}
+.brand{display:flex;flex-direction:column;gap:17px;padding:25px 20px 20px}
+.brand-logo-box{background:white;border-radius:12px;padding:13px 11px;min-height:68px;display:flex;align-items:center;justify-content:center;border:1px solid #cae9f7;box-shadow:0 5px 18px #00000014}
+.brand-product span{font-family:'Exo 2',sans-serif;color:#70d6fc;font-weight:800;font-size:14px;letter-spacing:2px}
+.brand-product strong{display:block;font-size:11px;color:#d7eaf4;font-weight:400;margin-top:4px}
+.menu-label{color:#81a7bf;padding:18px 22px 13px;font-size:9px;letter-spacing:1.8px;font-weight:800}
+.sidebar nav{display:grid;gap:7px;padding:0 12px}
+.sidebar nav button{background:transparent;color:#bdcedc;border:0;padding:13px 15px;text-align:left;border-radius:10px;font-size:12px;font-weight:600;position:relative}
+.sidebar nav button:hover{background:#1a435e;color:white}
+.sidebar nav button.active{background:#1b516b;color:white;box-shadow:inset 3px 0 0 var(--gya-celeste)}
+.sidebar-foot{margin-top:auto;border-top:1px solid #29516a;padding:16px 13px;display:flex;align-items:center;gap:10px}
+.avatar{height:34px;width:34px;display:grid;place-items:center;border-radius:10px;background:#1b6686;color:white;font-weight:800}
+.user-info{min-width:0;flex:1}
+.user-info strong,.user-info span{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px}
+.user-info span{font-size:10px;color:#9ab9cc}
+.signout{border:0;background:transparent;color:#a5c9d9;font-size:11px;font-weight:600}
+.signout:hover{color:white}
+.top{background:white;box-shadow:0 1px 0 var(--line);padding:25px 40px;display:flex;align-items:center;justify-content:space-between;gap:15px;position:relative}
+.top:after{content:'';position:absolute;bottom:0;left:0;width:210px;height:3px;background:linear-gradient(90deg,var(--gya-celeste),var(--gya-azul));border-radius:2px}
+.eyebrow{font-size:10px;color:#308ab5;font-weight:800;letter-spacing:1.5px}
+.top h1{font-size:25px;margin:5px 0 0;color:#183c53;font-weight:800}
+.top-tools{display:flex;gap:12px;align-items:center;color:#637b89;font-size:12px}
+.online-dot{width:8px;height:8px;border-radius:50%;background:#1cb890;box-shadow:0 0 0 3px #1cb89014}
+.main-content{padding:33px 40px;max-width:1440px;margin:auto}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px;margin-bottom:23px}
+.stat{position:relative;overflow:hidden;background:white;padding:22px 25px;border-radius:13px;border:1px solid var(--line);box-shadow:0 5px 24px #163b4a08}
+.stat:before{content:'';position:absolute;top:0;left:0;height:4px;width:100%;background:linear-gradient(90deg,var(--gya-celeste),var(--gya-azul))}
+.stat span{display:block;color:#668092;font-size:12px}
+.stat strong{display:block;font-size:34px;margin-top:9px;color:#1c536f}
+.section{background:white;border:1px solid var(--line);border-radius:13px;box-shadow:0 4px 22px #0e385808;padding:25px;margin-bottom:23px}
+.section-head{margin-bottom:20px}.section-head h2{font-size:18px;margin:0 0 7px;color:#1d4760}
+.section-head p{font-size:12px;color:#7b8e99;margin:0;line-height:1.5}
+.inline-form{display:flex;align-items:end;flex-wrap:wrap;gap:12px}
+.inline-form label{flex:1;min-width:160px}.inline-form.upload label:first-child{flex:2}
+label{display:grid;gap:8px;font-size:12px;font-weight:700;color:#405c6f}
+input,select{width:100%;min-height:42px;border:1px solid #cfdee8;border-radius:9px;padding:9px 12px;background:white;color:#27495a;outline:none}
+input:focus,select:focus{border-color:var(--gya-celeste);box-shadow:0 0 0 3px #00AEEF20}
+input[type=file]{height:auto;min-height:43px;font-size:12px}
+.helper{font-size:12px;color:#718995;margin-top:15px;line-height:1.6}
+.table-wrapper{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:12px}
+th{text-align:left;background:#f4fbfe;color:#64879d;text-transform:uppercase;letter-spacing:.65px;font-size:10px;padding:14px 11px}
+td{padding:15px 11px;border-bottom:1px solid #eaf0f3;vertical-align:middle}tr:last-child td{border:0}
+tr:hover td{background:#fafdff}
+.filename{min-width:180px;max-width:290px;word-break:break-word;font-weight:700}
+.mono{font-family:ui-monospace,Consolas,monospace;color:#678393}
+.row-actions{white-space:nowrap}.row-actions a,.row-actions button,.playlist-item button{background:none;border:0;color:#1684b8;font-size:11px;font-weight:700;margin-right:7px;text-decoration:none;padding:6px}
+.row-actions button:hover,.row-actions a:hover,.playlist-item button:hover{color:#006aa1;text-decoration:underline}
+.danger-text{color:#d34958!important}
+.pill{display:inline-block;border-radius:20px;padding:6px 10px;font-size:10px;font-weight:700}
+.pill.pending{background:#fff3d9;color:#996600}.pill.approved{background:#ddf8ea;color:#147c5b}.pill.rejected{background:#ffe5e9;color:#b6344b}
+.empty{text-align:center;color:#819caa;padding:34px}
+.alert,.notice{padding:13px 16px;border-radius:10px;margin-bottom:16px;font-size:12px;display:flex;justify-content:space-between;align-items:center}
+.alert{background:#ffeaee;color:#9e2b3f}.notice{background:#e4f8f0;color:#176a4b}
+.alert button,.notice button{border:0;background:none;color:inherit;font-size:20px}
+footer{text-align:center;color:#91a6b1;font-size:11px;padding:20px 0 30px}
+.playlist-editor{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:20px 0}
+.playlist-editor>div{border:1px solid #d9e9f1;border-radius:11px;padding:17px;min-height:180px;background:#fbfeff}
+.playlist-editor h3{font-size:14px;margin:0 0 12px;color:#255875}
+.playlist-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #e8f1f5;font-size:12px}
+.playlist-item span{overflow-wrap:anywhere}.playlist-buttons{display:flex;align-items:center}
+.loading{display:grid;place-items:center;height:100vh;color:#6c8799}
+@media(max-width:850px){.app-shell{grid-template-columns:1fr}.sidebar{position:static;height:auto}.sidebar .brand{padding:12px 16px;flex-direction:row;align-items:center;gap:12px}.brand-logo-box{padding:8px;width:135px;min-height:50px}.gya-logo-compact{width:116px}.brand-product{min-width:0}.sidebar .menu-label{display:none}.sidebar nav{display:flex;padding:5px 10px;overflow-x:auto}.sidebar nav button{white-space:nowrap}.sidebar-foot{padding:9px 12px}.top{padding:20px}.main-content{padding:16px}.stats{gap:8px}.stat{padding:15px}.stat strong{font-size:24px}.playlist-editor{grid-template-columns:1fr}.top-tools{font-size:0}.top-tools button{font-size:11px}}
+@media(max-width:480px){.login-card{padding:26px 20px}.login-card-header .gya-logo{width:155px}.product-badge{font-size:8px;padding:6px}.login-wave{width:100vw}.stats{grid-template-columns:1fr}.top h1{font-size:21px}.sidebar .brand-product strong{font-size:10px}}
