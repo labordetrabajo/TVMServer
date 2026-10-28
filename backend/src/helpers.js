@@ -8,7 +8,10 @@ export function safeOriginalName(value) { return String(value || '').replace(/[\
 export function clientScope(user) { return user.role === 'admin' ? null : user.client_id; }
 export function toPublicVideo(v) {
   return {id:v.id, clientId:v.client_id, clientName:v.client_name, originalName:v.original_name,
-    size:v.bytes, status:v.status, uploadedAt:v.created_at, reviewedAt:v.reviewed_at};
+    size:v.bytes, status:v.status, uploadedAt:v.created_at, reviewedAt:v.reviewed_at, note:v.note||'', requestedStartAt:v.requested_start_at, requestedEndAt:v.requested_end_at, hasPublications:Boolean(v.has_publications),rejectionReason:v.rejection_reason||'',
+    mediaValidation:v.media_validation||'unverified',videoCodec:v.video_codec||null,audioCodec:v.audio_codec||null,
+    width:v.media_width||null,height:v.media_height||null,fps:v.media_fps?Number(v.media_fps):null,
+    durationSeconds:v.duration_seconds?Number(v.duration_seconds):null};
 }
 export function parseCookies(input='') {
   return Object.fromEntries(input.split(';').map(s=>s.trim()).filter(Boolean).map(x=>{

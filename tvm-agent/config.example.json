@@ -1,0 +1,6 @@
+{
+  "server_url": "https://tvm.TU-DOMINIO.com",
+  "token": "PEGAR_CLAVE_GENERADA_EN_PANEL_ADMINISTRADOR",
+  "player_dir": "/home/gya/TVM_Player_v1.4_Estable",
+  "poll_seconds": 60
+}

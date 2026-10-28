@@ -100,3 +100,94 @@ footer{text-align:center;color:#91a6b1;font-size:11px;padding:20px 0 30px}
 .loading{display:grid;place-items:center;height:100vh;color:#6c8799}
 @media(max-width:850px){.app-shell{grid-template-columns:1fr}.sidebar{position:static;height:auto}.sidebar .brand{padding:12px 16px;flex-direction:row;align-items:center;gap:12px}.brand-logo-box{padding:8px;width:135px;min-height:50px}.gya-logo-compact{width:116px}.brand-product{min-width:0}.sidebar .menu-label{display:none}.sidebar nav{display:flex;padding:5px 10px;overflow-x:auto}.sidebar nav button{white-space:nowrap}.sidebar-foot{padding:9px 12px}.top{padding:20px}.main-content{padding:16px}.stats{gap:8px}.stat{padding:15px}.stat strong{font-size:24px}.playlist-editor{grid-template-columns:1fr}.top-tools{font-size:0}.top-tools button{font-size:11px}}
 @media(max-width:480px){.login-card{padding:26px 20px}.login-card-header .gya-logo{width:155px}.product-badge{font-size:8px;padding:6px}.login-wave{width:100vw}.stats{grid-template-columns:1fr}.top h1{font-size:21px}.sidebar .brand-product strong{font-size:10px}}
+/* TVM v0.3 — Programación de campañas, sin cambiar el lenguaje visual GyA. */
+textarea{font:inherit;resize:vertical;width:100%;border:1px solid #cfdee8;border-radius:9px;padding:12px;background:white;color:#27495a;outline:none;line-height:1.6}
+textarea:focus{border-color:var(--gya-celeste);box-shadow:0 0 0 3px #00AEEF20}
+.upload-form{display:grid;gap:17px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.form-actions{display:flex;gap:18px;align-items:end;justify-content:space-between}
+.form-actions .helper{margin:0;max-width:720px}
+.form-actions button{white-space:nowrap}
+.secondary-small{font-size:10px;font-weight:400;color:#8498a4;margin-top:6px;line-height:1.5}
+.note-col{min-width:140px;max-width:260px;white-space:normal;overflow-wrap:anywhere;line-height:1.5;color:#577386}
+.agenda-tools{display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:15px;margin-bottom:20px}
+.agenda-tools label{min-width:200px}
+.legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.urgency{display:inline-block;white-space:nowrap;border:1px solid #dfe8eb;border-radius:7px;padding:7px 9px;font-size:10px;font-weight:800;color:#60727d;background:#fff}
+.urgency.upcoming{background:#fff1a7;border-color:#e5d26f;color:#6b5200}
+.urgency.overdue{background:#f6bab7;border-color:#ea9894;color:#8f2227}
+.urgency.published{background:#d9f8e9;border-color:#a1e3c4;color:#16764d}
+.urgency.completed{background:#e8f0ff;border-color:#c6d5f7;color:#405da3}
+.urgency.cancelled{background:#f2f4f6;color:#7c8791}
+.agenda-row.future td{background:#fff}
+.agenda-row.upcoming td{background:#fff7cc}
+.agenda-row.overdue td{background:#ffe0dd}
+.agenda-row.published td{background:#e9fbf2}
+.agenda-row.completed td{background:#f0f5ff}
+.agenda-row:hover td{filter:brightness(.98)}
+.note-preview{border-left:3px solid var(--gya-celeste);background:#edfaff;padding:12px 16px;border-radius:6px;font-size:12px;color:#3e6378;line-height:1.7;white-space:pre-line}
+.effective-list{margin-top:17px}
+.effective-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid #ecf2f6;font-size:12px;overflow-wrap:anywhere}
+.source-tag{padding:5px 8px;border-radius:5px;font-size:10px;white-space:nowrap;background:#e8f7ff;color:#1584bb;font-weight:700}
+.source-tag.manual{background:#f0f2f4;color:#627585}
+@media(max-width:780px){.form-grid{grid-template-columns:1fr}.form-actions{flex-direction:column;align-items:stretch}.legend{justify-content:start}}
+
+/* TVM v0.3.1 — Gestión del contenido: acciones exclusivas del administrador. */
+.row-actions .unpublish-action{color:#a47808;background:#fff8dd;border:1px solid #f0dfac;border-radius:7px;padding:7px 9px;margin:2px}
+.row-actions .unpublish-action:hover:not(:disabled){color:#815900;background:#ffefb3;text-decoration:none}
+.row-actions .delete-action{color:#bd2d43;background:#fff0f2;border:1px solid #f4c8d0;border-radius:7px;padding:7px 9px;margin:2px}
+.row-actions .delete-action:hover:not(:disabled){color:#8c1428;background:#ffdae1;text-decoration:none}
+
+/* Parche UX: fecha mediante calendario; horario con desplegables separados.
+   Sin controles de ruedita y compatible con fechas previamente guardadas. */
+.datetime-field{display:grid;gap:8px;min-width:0}
+.datetime-label{font-size:12px;font-weight:700;color:#405c6f}
+.datetime-controls{display:grid;grid-template-columns:minmax(125px,1.6fr) minmax(68px,.72fr) minmax(78px,.8fr);gap:9px;min-width:0}
+.datetime-part{display:grid;gap:6px;font-size:10px;font-weight:700;color:#658294;min-width:0}
+.datetime-part input,.datetime-part select{width:100%;min-width:0;min-height:42px;padding:8px 10px;font-size:13px}
+.datetime-part select{cursor:pointer}
+.datetime-part select:disabled,.datetime-part input:disabled{cursor:not-allowed;background:#f3f7fa;color:#9caeba}
+.datetime-hint{font-size:10px;color:#688798;line-height:1.4;min-height:14px}
+@media(max-width:430px){.datetime-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.datetime-date{grid-column:1/-1}}
+
+/* TVM v0.3.2 — Usuarios y aprobación/programación en un paso */
+.totem-chooser{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:9px;margin-top:4px}
+.totem-choice{display:flex;flex-direction:row;align-items:center;gap:10px;border:1px solid #cce7f2;background:#f5fbff;padding:10px 12px;border-radius:9px;cursor:pointer}
+.totem-choice:has(input:checked){background:#e3f7ff;border-color:#00aeef}
+.totem-choice input,.admin-upload-options input[type=radio],.toggle-active input{width:17px;height:17px;min-height:0;flex:0 0 auto;accent-color:var(--gya-celeste)}
+.totem-choice small{display:block;color:#7791a0;font-weight:400;margin-top:3px;font-size:10px}
+.admin-upload-options{border:1px solid #d3eaf3;background:#f6fcff;border-radius:12px;padding:17px;display:grid;gap:12px}
+.admin-upload-options>strong{font-size:13px;color:#1c546e}
+.admin-upload-options>label{display:flex;flex-direction:row;gap:10px;align-items:center;font-size:12px}
+.toggle-active{display:flex;align-items:center;flex-direction:row;gap:12px;border:1px solid #dcecf1;padding:12px 14px;border-radius:8px;background:#f8fcff;width:fit-content}
+.row-actions .authorize-action{background:#e3f8ff;border:1px solid #9cdaed;color:#076d95;border-radius:7px;padding:7px 10px;margin:2px}
+.row-actions .authorize-action:hover{background:#c7f0fe;text-decoration:none}
+@media(max-width:640px){.totem-chooser{grid-template-columns:1fr}}
+
+/* TVM v0.3.3 — vista previa, avisos y almacenamiento. Conserva colores GyA. */
+.nav-count{display:inline-flex;align-items:center;justify-content:center;margin-left:9px;background:#fbdc5f;color:#674e00;border-radius:30px;min-width:21px;height:21px;padding:0 5px;font-weight:900;font-size:11px}
+.preview-action{border:1px solid #c2e5f5!important;background:#e9f8ff!important;border-radius:7px!important;color:#137ba6!important;padding:7px 10px!important}
+.preview-shade{position:fixed;inset:0;z-index:9999;background:#062337d6;display:flex;align-items:center;justify-content:center;padding:22px;overflow-y:auto}
+.preview-panel{background:white;width:min(900px,100%);border-radius:16px;padding:20px;box-shadow:0 24px 70px #071d2a55}
+.preview-head{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:15px;color:#244d64}
+.preview-head strong{display:block;overflow-wrap:anywhere}.preview-head small{display:block;color:#688596;margin-top:5px}
+.video-preview{display:block;background:#0c1b24;width:100%;max-height:65vh;border-radius:10px}
+.preview-foot{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:11px;color:#5e7d8c}
+.media-badge{display:inline-block;margin-top:6px;padding:5px 7px;font-size:10px;border-radius:6px;font-weight:700}
+.media-badge.is-valid{background:#e3f8ed;color:#15764b}.media-badge.is-unknown{background:#fff2d5;color:#996a0b}
+.rejection-reason{margin-top:8px;background:#fff0f3;border-left:3px solid #d85a6d;padding:8px;font-weight:400;color:#9c3348;font-size:11px;line-height:1.5}
+.warning-box{padding:13px 16px;background:#fff3d9;border:1px solid #ecd6a0;color:#835a0a;border-radius:9px;font-size:12px;line-height:1.5;margin-bottom:14px}
+.alert-item{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 8px;border-bottom:1px solid #edf2f6}
+.alert-item strong,.alert-item small{display:block;overflow-wrap:anywhere}.alert-item strong{color:#254a61;font-size:13px}.alert-item small{color:#718a9b;font-size:11px;margin-top:6px;line-height:1.6}
+.storage-progress{height:15px;border-radius:9px;background:#e6f1f7;overflow:hidden}.storage-progress>div{height:100%;background:linear-gradient(90deg,#00AEEF,#2F88E4)}
+@media(max-width:650px){.preview-shade{padding:10px}.preview-panel{padding:12px}.preview-head{flex-wrap:wrap}.alert-item{align-items:start;flex-direction:column}}
+
+/* TVM v0.4: inventario remoto y vinculación */
+.totem-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:15px 0}
+.totem-disk{margin:14px 0 20px}
+.totem-disk-bar{width:100%;height:14px;border-radius:99px;overflow:hidden;background:#e4eaf0}
+.totem-disk-bar span{display:block;height:100%;border-radius:99px;background:#00aeef;transition:width .2s ease}
+.token-card{padding:16px;background:#eaf8ff;border:1px solid #89cdee;border-radius:12px;margin:16px 0;color:#17384d}
+.token-card p{font-size:13px;line-height:1.5}
+.token-value{display:block;word-break:break-all;overflow-wrap:anywhere;background:white;padding:12px;border:1px solid #c8d9e5;border-radius:6px;margin:10px 0}
+.token-card button{margin-right:10px}

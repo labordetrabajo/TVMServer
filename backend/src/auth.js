@@ -16,7 +16,7 @@ export async function auth(req,res,next) {
     const token=parseCookies(req.headers.cookie)[COOKIE];
     if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.status(401).json({error:'Sesión no iniciada'});
     const r=await pool.query(`SELECT u.id,u.email,u.role,u.client_id FROM sessions s JOIN users u ON u.id=s.user_id
-      WHERE s.token_hash=$1 AND s.expires_at>now()`, [sha256(token)]);
+      WHERE s.token_hash=$1 AND s.expires_at>now() AND u.is_active=true`, [sha256(token)]);
     if (!r.rowCount) return res.status(401).json({error:'Sesión vencida'});
     req.user=r.rows[0];
     next();
@@ -29,12 +29,12 @@ export function authRoutes(app) {
     try {
       const email=cleanEmail(req.body?.email), password=req.body?.password;
       if (!validEmail(email) || typeof password !== 'string') return res.status(400).json({error:'Credenciales inválidas'});
-      const result=await pool.query('SELECT id,email,role,client_id,password_hash FROM users WHERE lower(email)=$1',[email]);
+      const result=await pool.query('SELECT id,email,role,client_id,password_hash,is_active FROM users WHERE lower(email)=$1',[email]);
       const user=result.rows[0];
       // Hash de relleno para no responder inmediatamente cuando el usuario no existe.
       const sentinel='$2a$12$wctCnaH9jF3FowhuxrIXPOpiCC1g6qb7.Rm6lJBYxR2Zos8oOKRQG';
       const matches=await bcrypt.compare(password,user?.password_hash ?? sentinel);
-      if (!user || !matches) return res.status(401).json({error:'Usuario o contraseña incorrectos'});
+      if (!user || !user.is_active || !matches) return res.status(401).json({error:'Usuario o contraseña incorrectos'});
       const token=crypto.randomBytes(32).toString('hex');
       await pool.query('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,$3)', [sha256(token),user.id,new Date(Date.now()+MAX_SESSION_AGE)]);
       res.setHeader('Set-Cookie', `${COOKIE}=${token}; ${cookieAttrs}; Max-Age=${Math.floor(MAX_SESSION_AGE/1000)}`);

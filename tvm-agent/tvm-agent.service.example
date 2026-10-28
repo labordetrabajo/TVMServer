@@ -1,0 +1,16 @@
+[Unit]
+Description=TVM Agent - sincronizacion de videos y telemetria del totem
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gya
+WorkingDirectory=/home/gya/tvm-agent
+ExecStart=/usr/bin/python3 /home/gya/tvm-agent/agent.py --config /home/gya/tvm-agent/config.json
+Restart=always
+RestartSec=15
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

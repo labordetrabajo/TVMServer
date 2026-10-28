@@ -1,0 +1,48 @@
+TVM Agent v0.4 - Raspberry Pi 3 / Player v1.4
+===========================================
+Este AGENTE es un programa separado; NO modifica main.py, MPV ni las funciones del reproductor.
+Sí modifica playlist.json (con copia de seguridad) y agrega/elimina sus propios MP4 con prefijo tvm-.
+Videos copiados a mano en la Raspberry NO se eliminan con la limpieza TVM.
+
+USAR SOLO DESPUÉS DE PUBLICAR TVM Server en el VPS con HTTPS.
+Para cada Raspberry se necesita una clave distinta que genera el administrador desde la sección Tótems.
+No subir config.json ni la clave a Git. No compartir con clientes.
+
+1) Copiar la carpeta tvm-agent a /home/gya/tvm-agent en la Raspberry.
+2) cd /home/gya/tvm-agent
+3) cp config.example.json config.json
+4) nano config.json
+   - server_url: dirección HTTPS REAL del servidor (no localhost de Windows)
+   - token: clave única generada en panel Tótems > Administrar > Vincular
+   - player_dir: ruta real donde está main.py de TVM Player v1.4
+   - poll_seconds: por defecto 60 (1 minuto)
+5) chmod 600 config.json
+6) python3 agent.py --once
+   Si muestra errores, revisar la URL, token, espacio, permisos y conexión.
+7) Luego, si funciona, instalar el servicio systemd OPCIONAL:
+   sudo cp tvm-agent.service.example /etc/systemd/system/tvm-agent.service
+   Editar la ruta/User del archivo si el usuario de Linux NO es gya.
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now tvm-agent
+   systemctl status tvm-agent
+   journalctl -u tvm-agent -n 60 --no-pager
+
+IMPORTANTE:
+- Para reproducción ordenada, el agente cambia playlist.json al modo managed, guardando
+  una copia original como playlist.pre-tvm-agent.json (si no existe).
+- El agente conserva los archivos locales si se cae Internet; las campañas futuras precargadas
+  pueden iniciar/finalizar basadas en el reloj del dispositivo. Es necesario mantener la hora
+  de Raspberry sincronizada (NTP). Si la Pi queda offline, no recibe cancelaciones nuevas.
+- El panel ve espacio libre real solamente después del primer informe de la Raspberry.
+- Al eliminar un video en Tótems, se retira de las listas de ESE dispositivo, se mantiene en
+  el servidor y en otros tótems. La orden se completa cuando la Raspberry vuelva a conectarse.
+- "Liberar espacio" solo borra archivos tvm- descargados por el agente que ya no son necesarios.
+- El disco libre informado es del sistema de archivos de la carpeta videos; no todo ese espacio
+  puede reservarse a videos (incluye sistema operativo y otros datos).
+- Por seguridad, la descarga exige HTTPS salvo servidor local en la misma Raspberry.
+- Si reemplazás la clave en el panel, debes actualizar el config.json de esa Raspberry.
+- NUNCA ejecutar como root, ni abrir puertos de Raspberry a Internet.
+
+Para revertir, detené el servicio y restaurá playlist.pre-tvm-agent.json a playlist.json.
+No se borran los videos antiguos al revertir. No borrar manualmente managed.json si aún hay
+videos administrados: ese registro evita la eliminación de archivos ajenos.

@@ -1,6 +1,34 @@
-# Totem Video Manager — TVM Server v0.2
+# Totem Video Manager — TVM Server v0.3
 
-**Base funcional del servidor web con identidad visual GyA Digital.** Independiente de las aplicaciones ya instaladas en el VPS; no modifica ni reemplaza `totem-ecommerce`, `preguntados`, Nginx ni la Raspberry. El motor local **TVM Player v1.4** sigue intacto.
+**Versión con publicaciones automáticas programadas, notas de clientes, agenda administrativa y la identidad visual aprobada de GyA Digital.** Independiente de las aplicaciones ya instaladas en el VPS; no modifica ni reemplaza `totem-ecommerce`, `preguntados`, Nginx ni la Raspberry. El motor local **TVM Player v1.4** sigue intacto.
+
+## ACTUALIZACIÓN IMPORTANTE DESDE v0.2 (Windows)
+
+**NO borres tu base `tvm_dev`, los usuarios creados, tus videos ni `.env`.**
+
+Consultá **`GUIA_ACTUALIZACION_v0.2_a_v0.3.md`** para copiar la configuración, conservar los videos subidos y ejecutar:
+
+```bash
+cd backend
+npm install
+npm run db:migrate
+npm run dev
+```
+
+En otra terminal `cd frontend && npm install && npm run dev`. El usuario administrador que ya creaste sigue funcionando. **NO hay que volver a crearlo**.
+
+## Mejoras reales de la v0.3
+
+- Al subir un video, el cliente puede escribir una nota de hasta 1000 caracteres y solicitar una **fecha/hora de inicio** y una **fecha/hora de finalización opcional**.
+- El video siempre queda pendiente y requiere **aprobación de GyA** antes de que pueda programarse. Las fechas solicitadas NO publican automáticamente.
+- Nueva sección **Agenda** visible solo para administradores, con filtros por cliente, notas y colores: blanco (más de 48 horas), amarillo (hasta 48 horas), rojo (fecha alcanzada y aún sin publicar), verde (publicación activa).
+- El administrador asigna el video aprobado a uno de los tótems de ese cliente y confirma las fechas. Puede cancelar la programación.
+- Un trabajo del backend comprueba las fechas cada **10 segundos** e inicia o finaliza campañas aunque el navegador esté cerrado, siempre que el proceso Node.js esté ejecutándose.
+- Nueva vista de **reproducción efectiva**, que une playlists manuales y videos programados activos sin duplicados. **No se modifican** las publicaciones manuales existentes.
+- Una campaña programada no puede publicarse manualmente por accidente: se valida en la API y en el panel.
+- La migración SQL `003_programaciones.sql` agrega tablas/campos de forma incremental, manteniendo datos de v0.2.
+
+**Limitación:** todavía NO está la sincronización con las Raspberry; la activación automática se refleja en el servidor y su playlist efectiva, NO todavía en el TVM Player v1.4. Antes de producción se deberá completar API segura para dispositivos, descarga y activación offline.
 
 ## Cambios visuales de la v0.2
 
@@ -27,7 +55,7 @@ npm run dev
 
 Abrí `http://127.0.0.1:5173`. El diseño de login se puede revisar sin base de datos; para **iniciar sesión y usar los paneles** hace falta arrancar backend + PostgreSQL según esta guía. No hay cuentas demo ni credenciales predeterminadas.
 
-## Qué incluye hoy
+## Funciones que siguen incluidas
 
 - Acceso al panel mediante correo y contraseña (contraseñas hash bcrypt, sesiones HTTP-only).
 - Panel de administrador y panel aislado para cada cliente.
@@ -38,7 +66,7 @@ Abrí `http://127.0.0.1:5173`. El diseño de login se puede revisar sin base de 
 - Editor de playlists por tótem (agregar, retirar, ordenar y publicar una versión nueva).
 - API Express que escucha **solo en 127.0.0.1:3184**; compilación React/Vite servida por el mismo proceso.
 
-## Aún NO implementado
+## Todavía pendiente
 
 - Comunicación de tótems Raspberry con el VPS; la v1.4 del reproductor todavía NO descarga publicaciones remotas.
 - Conversión/normalización con FFmpeg, validación exhaustiva de códecs y procesamiento en cola.
@@ -126,7 +154,7 @@ VPS Debian 12 con Node.js 22+, npm, PostgreSQL 15+ y 44 GB libres para pruebas. 
 ## Carpetas
 
 ```
-TVM_Server_v0.2/
+TVM_Server_v0.3_GyA/
   backend/
     .env.example
     package.json
@@ -149,7 +177,7 @@ TVM_Server_v0.2/
 5. Iniciar sesión como cliente en una ventana privada y subir un MP4.
 6. Administrador aprueba el archivo.
 7. En **Publicaciones**, seleccionar `TOTEM-001`, agregar el video y presionar **Publicar cambios**.
-8. Ver que la versión de la playlist aumentó. Por ahora el tótem Raspberry no descarga esa lista: integración pendiente.
+8. Abrir **Agenda** para programar el video ya aprobado y comprobar, a la hora indicada, que aparece en **Ver reproducción efectiva** y que incrementa la versión de la playlist. La Raspberry todavía no descarga listas remotas.
 
 ## Consideraciones de seguridad
 

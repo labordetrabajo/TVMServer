@@ -1,0 +1,49 @@
+TVM Server v0.4 - DISPOSITIVOS Y LIMPIEZA REMOTA
+==================================================
+
+INSTALAR SOBRE TU ACTUAL TVM Server v0.3.3 EN WINDOWS
+
+1) DETENE las terminales de backend y frontend con Ctrl+C.
+2) HACÉ BACKUP de la carpeta del proyecto y de PostgreSQL tvm_dev desde pgAdmin.
+   Si tenés RESPALDAR_BASE_TVM_WINDOWS.bat, podés usarlo antes de actualizar.
+3) ABRÍ este ZIP y copiá TODO su contenido al directorio raíz de tu proyecto actual
+   (donde están las carpetas backend y frontend). Aceptá "Reemplazar archivos".
+   No BORRES la carpeta anterior ni la reemplaces entera.
+4) Doble clic en ACTUALIZAR_BASE_v0.4.bat.
+   Debe terminar con "OK: TVM Server v0.4". Si falla, DETENETE.
+5) Reiniciá las dos terminales, una en backend (npm run dev), otra en frontend (npm run dev).
+6) Abrí http://127.0.0.1:5173 (o localhost si tu APP_ORIGIN permite ambos).
+7) Entrá en Tótems > Administrar: aparece capacidad, espacio libre, lista de MP4,
+   botón Liberar espacio y Eliminar del tótem. Hasta conectar una Raspberry,
+   la pantalla indicará "Sin conexión / Sin datos". NO son valores inventados.
+
+NO CAMBIAMOS backend/.env, backend/storage/uploads, ningún archivo MP4 ni la base
+existente salvo agregar columnas nuevas mediante una migración idempotente.
+
+¿CÓMO CONECTAMOS LOS TÓTEMS REALES?
+La carpeta tvm-agent contiene un servicio independiente para Raspberry Pi.
+Para que reporte almacenamiento real y ejecute borrados, el servidor deberá
+estar publicado online con HTTPS y cada Raspberry deberá tener ese agente
+instalado y vinculado con clave individual desde Tótems > Administrar.
+Seguí tvm-agent/LEEME_AGENTE_RASPBERRY.txt SOLO cuando el VPS esté online.
+
+IMPORTANTE SOBRE EL REPRODUCTOR V1.4:
+El agente no edita ni reemplaza el código del reproductor. SÍ controla su
+playlist.json mediante el modo 'managed', respaldando el archivo anterior.
+Descarga archivos de nombre tvm-UUID.mp4, y solo borra los que administra.
+No borra los videos preexistentes que fueron copiados manualmente.
+Sin Internet no se puede confirmar ni ejecutar una orden NUEVA; la Raspberry
+lo hará cuando reconecte.
+
+ALMACENAMIENTO:
+- Capacidad/espacio libre: de la tarjeta/disco donde está la carpeta videos.
+- Videos TVM: suma de los MP4 descargados por el agente, no todo el uso de SD.
+- Liberar espacio: elimina MP4 administrados sin uso; no es una limpieza del sistema Linux.
+- Eliminar del tótem: retira únicamente de ese dispositivo, sin quitar el MP4 del VPS.
+- El uso de la SD incluye Raspberry OS, cache y archivos de terceros.
+
+VALIDACIÓN:
+Las pruebas automatizadas se ejecutaron fuera de tu entorno real. Antes de
+usar clientes reales, probá con un video pequeño y un tótem de prueba, de
+principio a fin (publicar, descargar, mostrar espacio, borrar y reconectar).
+La compilación final de Vite hay que probarla en Windows (npm run build).

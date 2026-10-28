@@ -4,3 +4,13 @@ backend/storage/uploads/*
 !backend/storage/uploads/.gitkeep
 frontend/dist/
 *.log
+
+# Respaldos y datos locales
+*.backup
+*.dump
+*.bak
+backend/storage/.incoming/
+
+backend/backups/
+
+CONTRA BASE DE DATOS.txt
