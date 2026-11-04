@@ -191,3 +191,31 @@ textarea:focus{border-color:var(--gya-celeste);box-shadow:0 0 0 3px #00AEEF20}
 .token-card p{font-size:13px;line-height:1.5}
 .token-value{display:block;word-break:break-all;overflow-wrap:anywhere;background:white;padding:12px;border:1px solid #c8d9e5;border-radius:6px;margin:10px 0}
 .token-card button{margin-right:10px}
+
+
+/* TVM v0.4 — Requisitos visibles y avisos claros en la carga de videos. */
+.video-upload-guide{border:1px solid #a8dff4;border-left:5px solid var(--gya-celeste);background:#f2fbff;border-radius:12px;padding:20px 21px;margin-bottom:22px;color:#1b4f68}
+.video-upload-guide-head{display:flex;align-items:start;gap:12px;margin-bottom:18px}
+.guide-symbol{display:grid;flex:0 0 32px;place-items:center;width:32px;height:32px;background:#d1f1ff;border-radius:50%;font-size:22px;font-weight:800;color:#0076ae}
+.video-upload-guide-head strong{display:block;font-size:16px;line-height:1.45}
+.video-upload-guide-head p{font-size:13px;color:#416778;line-height:1.6;margin:6px 0 0}
+.video-guide-specs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.video-guide-specs>div{border:1px solid #c6e6f4;border-radius:9px;background:white;padding:13px 15px;min-width:0}
+.video-guide-specs span,.video-guide-specs strong,.video-guide-specs small{display:block}
+.video-guide-specs span{text-transform:uppercase;font-weight:800;color:#387a99;font-size:10px;letter-spacing:.5px}
+.video-guide-specs strong{font-size:14px;color:#174c64;margin:7px 0 6px;line-height:1.5}
+.video-guide-specs small{font-size:12px;color:#577585;line-height:1.55}
+.upload-error{display:flex;align-items:flex-start;gap:15px;border:2px solid #d85a60;border-left:7px solid #bf2539;background:#fff1f1;border-radius:13px;padding:19px 17px;margin:4px 0 12px;box-shadow:0 7px 24px #a52b3130;outline:none}
+.upload-error:focus{box-shadow:0 0 0 3px #d85a6055,0 7px 24px #a52b3130}
+.upload-error-icon{display:grid;flex:0 0 37px;place-items:center;width:37px;height:37px;border-radius:50%;color:white;background:#bd2537;font-size:22px;font-weight:900}
+.upload-error-content{flex:1;min-width:0}
+.upload-error-content strong{display:block;color:#8d1427;font-size:18px;line-height:1.35}
+.upload-error-content p{color:#7c2330;font-size:14px;line-height:1.65;margin:8px 0;overflow-wrap:anywhere}
+.upload-error-content small{display:block;color:#8e5058;font-size:12px;line-height:1.5}
+.upload-error-dismiss{border:0;color:#9a2b39;background:transparent;font-size:24px;line-height:1;padding:0 5px}
+.upload-error-dismiss:hover{color:#6f101c}
+@media(max-width:660px){.video-upload-guide{padding:15px}.video-guide-specs{grid-template-columns:1fr}.upload-error{gap:10px;padding:15px 11px}.upload-error-content strong{font-size:16px}.upload-error-content p{font-size:13px}}
+
+/* Avisos generales: tipografía legible y contraste reforzado. */
+.alert{border:1px solid #e6aab4;border-left:5px solid #bb263e;background:#fff0f2;color:#842638;font-size:14px;font-weight:600;line-height:1.5;padding:16px 18px;gap:15px;box-shadow:0 4px 15px #a52b3115}
+.notice{font-size:13px;line-height:1.5}

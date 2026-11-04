@@ -18,6 +18,7 @@ import { normalizeTotemIds, parseMultipartTotemIds, validPassword } from './publ
 import { inspectVideo, ffprobeReady } from './media-probe.js';
 import { availableSpace } from './storage-stats.js';
 import { registerDeviceRoutes } from './device-routes.js';
+import { registerAdminUserRoutes, wouldDisableLastAdmin } from './admin-user-routes.js';
 
 const app=express();
 app.disable('x-powered-by');
@@ -79,11 +80,17 @@ app.patch('/api/users/:id',auth,adminOnly,async(req,res,next)=>{
       return res.status(400).json({error:'No podés desactivar tu propia cuenta'});
     const hash=password===undefined?null:await bcrypt.hash(password,12);
     const changed=await transaction(async c=>{
-      const r=await c.query('SELECT id,email,is_active FROM users WHERE id=$1 FOR UPDATE',[req.params.id]);
+      // Serializa desactivaciones para impedir que dos administradores se deshabiliten a la vez.
+      if(isActive===false)await c.query('SELECT pg_advisory_xact_lock(74621, 101)');
+      const r=await c.query('SELECT id,email,role,is_active FROM users WHERE id=$1 FOR UPDATE',[req.params.id]);
       if(!r.rowCount)return null;
       const current=r.rows[0];
       const nextEmail=email===undefined?current.email:cleanEmail(email);
       const active=isActive===undefined?current.is_active:isActive;
+      if(current.role==='admin' && current.is_active && !active){
+        const count=await c.query("SELECT count(*)::integer AS total FROM users WHERE role='admin' AND is_active=true");
+        if(wouldDisableLastAdmin(current,active,count.rows[0].total))return {lastAdmin:true};
+      }
       const saved=await c.query(`UPDATE users SET email=$2,is_active=$3,
         password_hash=COALESCE($4,password_hash) WHERE id=$1
         RETURNING id,email,role,client_id,created_at,is_active`,[req.params.id,nextEmail,active,hash]);
@@ -92,9 +99,12 @@ app.patch('/api/users/:id',auth,adminOnly,async(req,res,next)=>{
       return {user:saved.rows[0],sessionsRevoked:hash!==null || nextEmail!==current.email || !active};
     });
     if(!changed)return res.status(404).json({error:'Usuario inexistente'});
+    if(changed.lastAdmin)return res.status(409).json({error:'No se puede desactivar el último administrador activo'});
     res.json({ok:true,...changed});
   }catch(e){if(e.code==='23505')return res.status(409).json({error:'Ese correo ya está registrado'});next(e);}
 });
+
+registerAdminUserRoutes(app,{auth,adminOnly,pool,hashPassword:password=>bcrypt.hash(password,12)});
 
 app.post('/api/users/client',auth,adminOnly,async(req,res,next)=>{
   try {
@@ -155,7 +165,7 @@ const upload=multer({
   }
 });
 function uploadOne(req,res,next){upload.single('video')(req,res,e=>{
-  if(e)return res.status(400).json({error:e.code==='LIMIT_FILE_SIZE'?'El archivo supera el límite de tamaño':e.message});
+  if(e)return res.status(e.code==='LIMIT_FILE_SIZE'?413:400).json({error:e.code==='LIMIT_FILE_SIZE'?`El archivo supera el límite de tamaño de ${MAX_UPLOAD_MB} MB. Comprimí el video MP4 y volvé a intentarlo.`:e.message});
   next();
 });}
 // Bloquea los tótems y verifica el cliente antes de crear campañas en una transacción.
@@ -199,6 +209,9 @@ app.post('/api/videos/:id/authorize-schedule',auth,adminOnly,async(req,res,next)
     res.json({ok:true,...result});
   }catch(e){if(e.status)return res.status(e.status).json({error:e.message});if(e.code==='23505')return res.status(409).json({error:'Publicación duplicada'});next(e);}
 });
+
+// Guía de carga: el frontend muestra el límite real definido en backend/.env.
+app.get('/api/videos/upload-rules',auth,(_req,res)=>res.json({maxUploadMb:MAX_UPLOAD_MB,maxFps:30,maxWidthOrHeight:1920,maxShortSide:1080,videoCodec:'H.264',audioCodec:'AAC',fileExtension:'.mp4'}));
 
 app.post('/api/videos',auth,uploadOne,async(req,res,next)=>{
   if(!req.file)return res.status(400).json({error:'Seleccioná un archivo MP4'});

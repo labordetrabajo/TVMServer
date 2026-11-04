@@ -1,14 +1,34 @@
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import{createRoot}from'react-dom/client';
 import './style.css';
+import {explainUploadError} from './upload-errors.js';
 
 async function api(route,opts={}){
-  const r=await fetch('/api'+route,{credentials:'same-origin',...opts,headers:{...(opts.body instanceof FormData?{}:{'Content-Type':'application/json'}),...opts.headers}});
-  const json=await r.json().catch(()=>({}));if(!r.ok)throw Error(json.error||`Error HTTP ${r.status}`);return json;
+  let r;
+  try{r=await fetch('/api'+route,{credentials:'same-origin',...opts,headers:{...(opts.body instanceof FormData?{}:{'Content-Type':'application/json'}),...opts.headers}})}
+  catch{throw new Error('No pudimos conectarnos con TVM Server. Comprobá tu conexión y volvé a intentarlo.')}
+  const json=await r.json().catch(()=>({}));
+  if(!r.ok){
+    const fallback=r.status===413?'El archivo supera el tamaño permitido por el servidor. Comprimilo y volvé a intentarlo.':r.status>=500?'El servidor tuvo un problema temporal. Volvé a intentarlo en unos minutos.':`Error HTTP ${r.status}`;
+    throw Error(json.error||fallback);
+  }
+  return json;
 }
 const asDate=v=>v?new Date(v).toLocaleString('es-AR'):'—';
 const readableBytes=v=>v>=1024**3?(v/1024**3).toFixed(2)+' GB':v>=1024**2?(v/1024**2).toFixed(1)+' MB':v>=1024?(v/1024).toFixed(1)+' KB':(v||0)+' B';
 const statuses={pending:'Pendiente',approved:'Aprobado',rejected:'Rechazado'};
+function VideoUploadGuide({rules}){
+  return <aside className="video-upload-guide" aria-label="Requisitos del video para el tótem">
+    <div className="video-upload-guide-head"><span className="guide-symbol" aria-hidden="true">ⓘ</span><div><strong>¿Cómo tiene que ser el video para el tótem?</strong><p>Preparalo vertical, como una historia de celular. <b>No lo gires:</b> la Raspberry lo orienta automáticamente.</p></div></div>
+    <div className="video-guide-specs">
+      <div><span>Orientación y calidad</span><strong>Vertical · 1080 × 1920 recomendado</strong><small>También sirve 720 × 1280. Máximo Full HD; se admiten otras proporciones compatibles.</small></div>
+      <div><span>Formato y códec</span><strong>MP4 · H.264</strong><small>Audio AAC opcional. Evitá MOV, H.265/HEVC y 4K.</small></div>
+      <div><span>Fotogramas</span><strong>Hasta 30 FPS</strong><small>No exportes a 60 FPS.</small></div>
+      <div><span>Tamaño máximo</span><strong>{rules?.maxUploadMb?`${rules.maxUploadMb} MB`:'Según límite del servidor'}</strong><small>Se controla el tamaño. Códecs y FPS se verifican si FFprobe está disponible.</small></div>
+    </div>
+  </aside>;
+}
+
 const localDateTime=iso=>{if(!iso)return '';const d=new Date(iso);const pad=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;};
 const isoDateTime=value=>value?new Date(value).toISOString():null;
 const dateUrgency=(date,status)=>{
@@ -76,12 +96,12 @@ function App(){
   useEffect(()=>{if(user){fetchAll().catch(e=>setError(e.message))}},[user]);
   useEffect(()=>{if(!user||user.role!=='admin')return;const timer=setInterval(()=>fetchAll().catch(()=>{}),30000);return ()=>clearInterval(timer)},[user]);
   function showError(e){setMessage('');setError(e.message)}
-  async function perform(fn){setBusy(true);setError('');setMessage('');try{const result=await fn();const msg=typeof result==='object'?result.msg:result;setMessage(msg||'Cambios guardados');if(!result?.skipRefresh)await fetchAll();}catch(e){showError(e)}finally{setBusy(false)}}
+  async function perform(fn,{onError}={}){setBusy(true);setError('');setMessage('');try{const result=await fn();const msg=typeof result==='object'?result.msg:result;setMessage(msg||'Cambios guardados');if(!result?.skipRefresh){try{await fetchAll()}catch(e){setError('La operación se guardó, pero no pudimos actualizar la lista. Tocá Actualizar para ver los cambios.')}}}catch(e){if(onError)onError(e);else showError(e)}finally{setBusy(false)}}
   async function logout(){try{await api('/auth/logout',{method:'POST'});}finally{setUser(null)}}
   if(user===undefined)return <div className="loading">Cargando Totem Video Manager...</div>;
   if(!user)return <Login onLogin={setUser}/>;
   const pendingCount=videos.filter(v=>v.status==='pending').length;
-  const links=[['videos','Videos'],['totems','Tótems'],...(admin?[['alerts','Avisos'],['clients','Clientes'],['users','Usuarios'],['agenda','Agenda'],['playlists','Publicaciones'],['storage','Almacenamiento']]:[])];
+  const links=[['videos','Videos'],['totems','Tótems'],...(admin?[['alerts','Avisos'],['clients','Clientes'],['users','Usuarios'],['admins','Administradores'],['agenda','Agenda'],['playlists','Publicaciones'],['storage','Almacenamiento']]:[])];
   return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-logo-box"><GyALogo compact/></div><div className="brand-product"><span>TVM SERVER</span><strong>Totem Video Manager</strong></div></div><div className="menu-label">PLATAFORMA DE CONTENIDOS</div><nav>{links.map(([key,label])=><button key={key} onClick={()=>{setPage(key);setError('');setMessage('')}} className={page===key?'active':''}>{label}{key==='alerts'&&pendingCount>0&&<span className="nav-count">{pendingCount}</span>}</button>)}</nav><div className="sidebar-foot"><div className="avatar">{user.email[0]?.toUpperCase()}</div><div className="user-info"><strong>{user.role==='admin'?'Administrador':'Cliente'}</strong><span title={user.email}>{user.email}</span></div><button className="signout" onClick={logout} title="Cerrar sesión">Salir</button></div></aside><main><header className="top"><div><span className="eyebrow">GYA DIGITAL / GESTIÓN CENTRALIZADA</span><h1>{links.find(l=>l[0]===page)?.[1]||'Panel'}</h1></div><div className="top-tools"><span className="online-dot"/> Panel conectado <button className="ghost" onClick={()=>perform(async()=>{await fetchAll();return 'Datos actualizados'})}>Actualizar</button></div></header><div className="main-content">{error&&<div className="alert" role="alert">{error}<button onClick={()=>setError('')}>×</button></div>}{message&&<div className="notice">{message}<button onClick={()=>setMessage('')}>×</button></div>}
     {page==='alerts'&&admin&&<AlertsPage videos={videos} schedules={schedules} storage={storage} onGoVideos={()=>setPage('videos')} onGoAgenda={()=>setPage('agenda')}/>}
     {page==='storage'&&admin&&<StoragePage storage={storage} onRefresh={()=>perform(async()=>{await fetchAll();return 'Almacenamiento actualizado'})}/>}
@@ -89,7 +109,8 @@ function App(){
     {page==='totems'&&<TotemsPage admin={admin} clients={clients} totems={totems} busy={busy} run={perform}/>}
     {page==='agenda'&&admin&&<AgendaPage videos={videos} totems={totems} schedules={schedules} clients={clients} busy={busy} run={perform}/>}
     {page==='clients'&&admin&&<ClientsPage clients={clients} busy={busy} run={perform}/>}
-    {page==='users'&&admin&&<UsersPage users={users} clients={clients} me={user} busy={busy} run={perform} onSelfReset={()=>setUser(null)}/>}
+    {page==='users'&&admin&&<UsersPage users={users} me={user} busy={busy} run={perform} onSelfReset={()=>setUser(null)}/>}
+    {page==='admins'&&admin&&<AdminsPage users={users} me={user} busy={busy} run={perform} onSelfReset={()=>setUser(null)}/>}
     {page==='playlists'&&admin&&<PlaylistsPage videos={videos} schedules={schedules} totems={totems} selected={selectedTotem} setSelected={setSelectedTotem} busy={busy} run={perform}/>}
     <footer>TVM Server v0.4 · GyA Digital · Etapa 1 — Panel web. Sincronización Raspberry mediante agente independiente.</footer>
   </div></main></div>
@@ -180,15 +201,25 @@ function VideosPage({admin,clients,totems,videos,busy,run}){
   const [file,setFile]=useState(null),[clientId,setClientId]=useState('');
   const [note,setNote]=useState(''),[startsAt,setStartsAt]=useState(''),[endsAt,setEndsAt]=useState('');
   const [approvalMode,setApprovalMode]=useState('pending'),[directTotems,setDirectTotems]=useState([]),[authorizeId,setAuthorizeId]=useState(null),[previewId,setPreviewId]=useState(null);
+  const [uploadError,setUploadError]=useState(null),[uploadRules,setUploadRules]=useState(null);
+  const uploadErrorRef=useRef(null);
+  useEffect(()=>{let active=true;api('/videos/upload-rules').then(r=>{if(active)setUploadRules(r)}).catch(()=>{});return ()=>{active=false}},[]);
+  useEffect(()=>{if(uploadError&&uploadErrorRef.current){uploadErrorRef.current.focus();uploadErrorRef.current.scrollIntoView({behavior:'smooth',block:'center'})}},[uploadError]);
   const currentClientTotems=totems.filter(t=>t.client_id===clientId);
   const authorization=videos.find(v=>v.id===authorizeId);
   const previewVideo=videos.find(v=>v.id===previewId);
   async function upload(e){
-    e.preventDefault();if(!file)return;
-    if(endsAt&&!startsAt){alert('Elegí una fecha de inicio antes de agregar una finalización');return;}
-    if(startsAt&&new Date(startsAt).getTime()<Date.now()-60000){alert('La fecha solicitada debe ser futura');return;}
-    if(endsAt&&new Date(endsAt)<=new Date(startsAt)){alert('La fecha de fin debe ser posterior al inicio');return;}
-    if(admin&&approvalMode==='publish'&&!directTotems.length){alert('Para publicar directamente elegí al menos un tótem');return;}
+    e.preventDefault();setUploadError(null);
+    const invalid=detail=>{setUploadError({title:'Revisá los datos antes de subir',detail});};
+    if(!file){invalid('Seleccioná un archivo MP4.');return;}
+    if(!/\.mp4$/i.test(file.name)){invalid('El archivo debe tener extensión .mp4. Exportalo como MP4 con video H.264.');return;}
+    if(uploadRules?.maxUploadMb&&file.size>uploadRules.maxUploadMb*1024*1024){
+      setUploadError(explainUploadError(new Error('El archivo supera el límite de tamaño'),uploadRules.maxUploadMb));return;
+    }
+    if(endsAt&&!startsAt){invalid('Elegí una fecha de inicio antes de agregar una finalización.');return;}
+    if(startsAt&&new Date(startsAt).getTime()<Date.now()-60000){invalid('La fecha solicitada debe ser futura.');return;}
+    if(endsAt&&new Date(endsAt)<=new Date(startsAt)){invalid('La fecha de fin debe ser posterior al inicio.');return;}
+    if(admin&&approvalMode==='publish'&&!directTotems.length){invalid('Para publicar directamente elegí al menos un tótem.');return;}
     if(admin&&approvalMode==='publish'&&!confirm(`¿Autorizar y ${startsAt?'programar':'publicar ahora'} este archivo en ${directTotems.length} tótem(s)?`))return;
     await run(async()=>{
       const data=new FormData();data.append('video',file);
@@ -199,16 +230,22 @@ function VideosPage({admin,clients,totems,videos,busy,run}){
       await api('/videos',{method:'POST',body:data});
       setFile(null);setNote('');setStartsAt('');setEndsAt('');setDirectTotems([]);e.target.reset();
       return admin&&approvalMode==='publish'?`Video aprobado y ${startsAt?'programado':'publicado'} en ${directTotems.length} tótem(s).`:'Video recibido. GyA deberá autorizar y asignar los tótems.';
-    });
+    },{onError:error=>setUploadError(explainUploadError(error,uploadRules?.maxUploadMb))});
   }
   const pending=videos.filter(v=>v.status==='pending').length;
   return <>
     {previewVideo&&<VideoPreview video={previewVideo} onClose={()=>setPreviewId(null)}/>}
     <div className="stats"><Stat label="Total de videos" value={videos.length}/><Stat label="Pendientes de revisión" value={pending}/><Stat label="Aprobados" value={videos.filter(v=>v.status==='approved').length}/></div>
     <Section title="Subir un video" subtitle={admin?'Carga por cuenta de cualquier cliente. Podés dejarlo pendiente o autorizarlo y publicarlo directamente.':'Cargá tu MP4, una nota y la fecha solicitada. GyA revisará y autorizará la campaña.'}>
+      <VideoUploadGuide rules={uploadRules}/>
       <form onSubmit={upload} className="upload-form">
+        {uploadError&&<div className="upload-error" role="alert" aria-live="assertive" tabIndex={-1} ref={uploadErrorRef}>
+          <div className="upload-error-icon" aria-hidden="true">!</div>
+          <div className="upload-error-content"><strong>{uploadError.title}</strong><p>{uploadError.detail}</p><small>El video no fue cargado. Podés corregirlo y volver a intentar.</small></div>
+          <button type="button" className="upload-error-dismiss" aria-label="Cerrar aviso de error" onClick={()=>setUploadError(null)}>×</button>
+        </div>}
         <div className="form-grid">
-          <Field label="Archivo MP4"><input type="file" accept="video/mp4,.mp4" onChange={e=>setFile(e.target.files[0]||null)} required/></Field>
+          <Field label="Archivo MP4"><input type="file" accept="video/mp4,.mp4" onChange={e=>{setFile(e.target.files[0]||null);setUploadError(null)}} required/></Field>
           {admin&&<Field label="Cliente"><select value={clientId} onChange={e=>{setClientId(e.target.value);setDirectTotems([]);}} required><option value="">Seleccionar cliente</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>}
         </div>
         <Field label="Descripción / nota para GyA"><textarea rows={3} placeholder="Ej.: Campaña del fin de semana, evento de lanzamiento..." maxLength={1000} value={note} onChange={e=>setNote(e.target.value)}/></Field>
@@ -217,7 +254,7 @@ function VideosPage({admin,clients,totems,videos,busy,run}){
           {approvalMode==='publish'&&<Field label="Seleccioná los tótems de este cliente"><TotemCheckboxes totems={currentClientTotems} selected={directTotems} onChange={setDirectTotems}/></Field>}</div>}
         <div className="form-actions"><span className="helper">Hora local de esta computadora. Una publicación futura se activa cuando llega el horario, no al aprobarla.</span><button className="primary" disabled={busy||!file||(admin&&!clientId)||(admin&&approvalMode==='publish'&&!directTotems.length)}>{busy?'Subiendo...':admin&&approvalMode==='publish'?'Subir, autorizar y publicar/programar':'Enviar para aprobación'}</button></div>
       </form>
-      <div className="helper">El archivo conserva su nombre original en pantalla y se guarda en el servidor con ID único. Si está disponible FFprobe, se verifican H.264, AAC, resolución Full HD y hasta 30 FPS. Sin FFprobe, se muestra «Sin verificar».</div>
+      <div className="helper">El archivo conserva su nombre original en el panel. El servidor verifica códec, resolución y FPS cuando FFprobe está disponible. Si no puede inspeccionarlo, figurará «Sin verificar» hasta que el administrador lo revise.</div>
     </Section>
     {admin&&authorization&&<AuthorizePanel key={authorization.id} video={authorization} totems={totems} busy={busy} run={run} onClose={()=>setAuthorizeId(null)}/>}
     <Section title={admin?'Biblioteca de todos los clientes':'Mis videos'} subtitle="Los videos de los clientes requieren autorización de GyA. Solo el administrador puede despublicar o borrar.">
@@ -233,9 +270,40 @@ function ClientsPage({clients,busy,run}){
   const[name,setName]=useState(''),[email,setEmail]=useState(''),[pw,setPw]=useState(''),[selected,setSelected]=useState('');
   return <><Section title="Crear cliente" subtitle="Una empresa puede tener uno o varios tótems."><form className="inline-form" onSubmit={e=>{e.preventDefault();run(async()=>{await api('/clients',{method:'POST',body:JSON.stringify({name})});setName('');return 'Cliente creado'});}}><Field label="Nombre de empresa"><input value={name} onChange={e=>setName(e.target.value)} minLength={2} maxLength={150} required placeholder="Ej.: Coca-Cola"/></Field><button className="primary" disabled={busy}>Crear cliente</button></form></Section><Section title="Crear usuario del cliente" subtitle="El usuario solamente tendrá acceso a videos y tótems de su empresa."><form className="inline-form" onSubmit={e=>{e.preventDefault();run(async()=>{await api('/users/client',{method:'POST',body:JSON.stringify({clientId:selected,email,password:pw})});setEmail('');setPw('');return 'Acceso del cliente creado'})}}><Field label="Empresa"><select required value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Seleccionar</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><Field label="Correo"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)}/></Field><Field label="Contraseña (mín. 12)"><input type="password" autoComplete="new-password" minLength={12} required value={pw} onChange={e=>setPw(e.target.value)}/></Field><button className="primary" disabled={busy}>Crear acceso</button></form></Section><Section title="Clientes registrados" subtitle="Listado de empresas"><div className="table-wrapper"><table><thead><tr><th>Empresa</th><th>ID</th><th>Alta</th></tr></thead><tbody>{clients.map(c=><tr key={c.id}><td><strong>{c.name}</strong></td><td className="mono">{c.id.slice(0,8)}…</td><td>{asDate(c.created_at)}</td></tr>)}{!clients.length&&<tr><td colSpan="3" className="empty">No hay clientes todavía.</td></tr>}</tbody></table></div></Section></>
 }
-function UsersPage({users,clients,me,busy,run,onSelfReset}){
+function AdminsPage({users,me,busy,run,onSelfReset}){
+  const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[confirmation,setConfirmation]=useState('');
+  async function create(e){
+    e.preventDefault();
+    if(password!==confirmation){alert('Las contraseñas no coinciden');return;}
+    if(password.length<12||password.length>128){alert('La contraseña debe tener entre 12 y 128 caracteres');return;}
+    if(!confirm(`¿Crear un administrador con acceso completo a TVM Server para ${email.trim()}?`))return;
+    await run(async()=>{
+      await api('/users/admin',{method:'POST',body:JSON.stringify({email,password})});
+      setEmail('');setPassword('');setConfirmation('');
+      return 'Administrador creado. Ya puede iniciar sesión con su propia cuenta.';
+    });
+  }
+  return <>
+    <Section title="Crear administrador" subtitle="La nueva cuenta tendrá acceso al mismo panel, clientes, tótems y publicaciones. Solo un administrador puede crearla.">
+      <form className="upload-form" onSubmit={create}>
+        <div className="form-grid">
+          <Field label="Correo electrónico"><input type="email" required maxLength={254} autoComplete="off" value={email} onChange={e=>setEmail(e.target.value)} placeholder="administrador@empresa.com"/></Field>
+          <Field label="Contraseña (12 a 128 caracteres)"><input type="password" required minLength={12} maxLength={128} autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)}/></Field>
+        </div>
+        <Field label="Repetir contraseña"><input type="password" required minLength={12} maxLength={128} autoComplete="new-password" value={confirmation} onChange={e=>setConfirmation(e.target.value)}/></Field>
+        <p className="helper">Cada administrador tiene una contraseña propia. No compartas la cuenta principal: las cuentas nuevas tienen los mismos permisos de gestión.</p>
+        <div className="form-actions"><span className="helper">No se modifican los clientes, videos ni tótems existentes.</span><button className="primary" disabled={busy||!email.trim()||!password||!confirmation}>Crear administrador</button></div>
+      </form>
+    </Section>
+    <UsersPage users={users} me={me} busy={busy} run={run} onSelfReset={onSelfReset} onlyAdmins/>
+  </>;
+}
+function UsersPage({users,me,busy,run,onSelfReset,onlyAdmins=false}){
   const[selectedId,setSelectedId]=useState(''),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[active,setActive]=useState(true);
-  const selected=users.find(u=>u.id===selectedId);
+  const visibleUsers=onlyAdmins?users.filter(u=>u.role==='admin'):users;
+  const activeAdminCount=users.filter(u=>u.role==='admin'&&u.is_active).length;
+  const selected=visibleUsers.find(u=>u.id===selectedId);
+  const lastAdmin=selected?.role==='admin'&&selected.is_active&&activeAdminCount<=1;
   function choose(user){setSelectedId(user.id);setEmail(user.email);setPassword('');setActive(user.is_active);}
   async function save(e){
     e.preventDefault();if(!selected)return;
@@ -252,18 +320,18 @@ function UsersPage({users,clients,me,busy,run,onSelfReset}){
     });
   }
   return <>
-    <Section title="Gestión de usuarios" subtitle="Accesos de GyA y de cada cliente. Las contraseñas no se pueden ver: están protegidas; sí podés establecer una nueva.">
+    <Section title={onlyAdmins?"Administradores registrados":"Gestión de usuarios"} subtitle={onlyAdmins?"Administradores con acceso al mismo panel. Podés editar sus datos, restablecer contraseñas o deshabilitar cuentas sin borrar sus registros.":"Accesos de GyA y de cada cliente. Las contraseñas no se pueden ver: están protegidas; sí podés establecer una nueva."}>
       <div className="table-wrapper"><table><thead><tr><th>Correo</th><th>Rol</th><th>Cliente</th><th>Alta</th><th>Acceso</th><th>Acciones</th></tr></thead><tbody>
-        {users.map(u=><tr key={u.id}><td><strong>{u.email}</strong>{u.id===me.id&&<div className="secondary-small">Tu cuenta</div>}</td><td>{u.role==='admin'?'Administrador':'Cliente'}</td><td>{u.client_name||'GyA Digital'}</td><td>{asDate(u.created_at)}</td><td><span className={'pill '+(u.is_active?'approved':'rejected')}>{u.is_active?'Habilitado':'Deshabilitado'}</span></td><td className="row-actions"><button onClick={()=>choose(u)} className="authorize-action">Editar / Contraseña</button></td></tr>)}
-        {!users.length&&<tr><td colSpan="6" className="empty">Sin usuarios registrados.</td></tr>}
+        {visibleUsers.map(u=><tr key={u.id}><td><strong>{u.email}</strong>{u.id===me.id&&<div className="secondary-small">Tu cuenta</div>}</td><td>{u.role==='admin'?'Administrador':'Cliente'}</td><td>{u.client_name||'GyA Digital'}</td><td>{asDate(u.created_at)}</td><td><span className={'pill '+(u.is_active?'approved':'rejected')}>{u.is_active?'Habilitado':'Deshabilitado'}</span></td><td className="row-actions"><button onClick={()=>choose(u)} className="authorize-action">Editar / Contraseña</button></td></tr>)}
+        {!visibleUsers.length&&<tr><td colSpan="6" className="empty">Sin usuarios registrados.</td></tr>}
       </tbody></table></div>
     </Section>
     {selected&&<Section title="Editar usuario" subtitle={`Modificando ${selected.email}. La contraseña actual nunca se muestra.`} toolbar={<button className="ghost" onClick={()=>setSelectedId('')}>Cerrar</button>}>
       <form className="upload-form" onSubmit={save}>
         <div className="form-grid"><Field label="Correo electrónico"><input type="email" required maxLength={254} value={email} onChange={e=>setEmail(e.target.value)}/></Field><Field label="Cliente / rol"><input value={`${selected.role==='admin'?'Administrador':'Cliente'} · ${selected.client_name||'GyA Digital'}`} disabled/></Field></div>
         <Field label="Nueva contraseña (opcional, mínimo 12 caracteres)"><input type="password" minLength={12} maxLength={128} autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Dejá vacío para conservar la contraseña"/></Field>
-        <label className="toggle-active"><input type="checkbox" checked={active} disabled={selected.id===me.id} onChange={e=>setActive(e.target.checked)}/><span>Permitir que este usuario inicie sesión</span></label>
-        <p className="helper">Si cambiás la contraseña, el correo o desactivás el acceso, se cierran las sesiones anteriores del usuario. No se guardan contraseñas visibles.</p>
+        <label className="toggle-active"><input type="checkbox" checked={active} disabled={selected.id===me.id||lastAdmin} onChange={e=>setActive(e.target.checked)}/><span>Permitir que este usuario inicie sesión</span></label>
+        <p className="helper">Si cambiás la contraseña, el correo o desactivás el acceso, se cierran las sesiones anteriores del usuario. No se guardan contraseñas visibles.{lastAdmin?" La última cuenta administradora activa no puede deshabilitarse.":""}</p>
         <div className="form-actions"><span className="helper">Los cambios no eliminan clientes, videos ni tótems.</span><button className="primary" disabled={busy||!email.trim()}>Guardar usuario</button></div>
       </form>
     </Section>}
