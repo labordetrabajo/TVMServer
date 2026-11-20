@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool } from '../src/db.js';
-const migrations=['003_programaciones.sql','004_admin_delete_unpublish.sql','005_usuarios_accesos.sql','006_preparacion_produccion.sql','007_dispositivos_remotos.sql'];
+const migrations=['003_programaciones.sql','004_admin_delete_unpublish.sql','005_usuarios_accesos.sql','006_preparacion_produccion.sql','007_dispositivos_remotos.sql','008_reproduccion_cliente.sql'];
 try {
   for(const filename of migrations){
     const fullpath=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../sql/migrations/',filename);

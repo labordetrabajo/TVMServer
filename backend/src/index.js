@@ -143,6 +143,42 @@ app.get('/api/totems',auth,async(req,res,next)=>{
     res.json({totems:(await pool.query(q,args)).rows});
   }catch(e){next(e);}
 });
+app.get('/api/client/playlists',auth,async(req,res,next)=>{
+  try {
+    if(req.user.role!=='client')return res.sendStatus(403);
+    res.set('Cache-Control','private, no-store');
+    const {rows}=await pool.query(`
+      SELECT t.id,t.code,t.last_seen>now()-interval '3 minutes' AS online,
+        t.device_reported_at>now()-interval '90 seconds' AS recent_report,
+        COALESCE(own.items,'[]'::jsonb) AS items,
+        own.reported_id
+      FROM totems t
+      LEFT JOIN LATERAL (
+        SELECT jsonb_agg(jsonb_build_object('id',v.id,'name',v.original_name)
+          ORDER BY assigned.priority,assigned.position,assigned.video_id) AS items,
+          (array_agg(v.id) FILTER (WHERE v.id=t.device_playing_video_id))[1] AS reported_id
+        FROM (
+          SELECT DISTINCT ON (video_id) video_id,priority,position FROM (
+            SELECT p.video_id,0 AS priority,p.position::bigint AS position
+            FROM playlist_items p WHERE p.totem_id=t.id
+            UNION ALL
+            SELECT s.video_id,1,row_number() OVER (ORDER BY s.starts_at,s.id)
+            FROM scheduled_publications s
+            WHERE s.totem_id=t.id AND s.status IN ('scheduled','active')
+              AND s.starts_at<=now() AND (s.ends_at IS NULL OR s.ends_at>now())
+          ) entries ORDER BY video_id,priority,position
+        ) assigned
+        JOIN videos v ON v.id=assigned.video_id
+        WHERE v.client_id=t.client_id AND v.uploader_id=$2 AND v.status='approved'
+      ) own ON true
+      WHERE t.client_id=$1 ORDER BY t.code`,[req.user.client_id,req.user.id]);
+    res.json({totems:rows.map(({id,code,online,recent_report,items,reported_id})=>({
+      id,code,online:Boolean(online),items,
+      playingId:online&&recent_report?reported_id:null,
+      lastPlayedId:online?null:reported_id
+    }))});
+  }catch(e){next(e);}
+});
 registerDeviceRoutes(app,{auth,adminOnly});
 app.post('/api/totems',auth,adminOnly,async(req,res,next)=>{
   try {
@@ -267,8 +303,8 @@ app.post('/api/videos',auth,uploadOne,async(req,res,next)=>{
 });
 app.get('/api/videos',auth,async(req,res,next)=>{
   try{
-    const args=req.user.role==='admin'?[]:[req.user.client_id];
-    const where=args.length?'WHERE v.client_id=$1':'';
+    const args=req.user.role==='admin'?[]:[req.user.client_id,req.user.id];
+    const where=args.length?'WHERE v.client_id=$1 AND v.uploader_id=$2':'';
     const q=`SELECT v.id,v.client_id,c.name AS client_name,v.original_name,v.bytes,v.status,v.created_at,v.reviewed_at,v.note,v.requested_start_at,v.requested_end_at,v.rejection_reason,
        v.media_validation,v.video_codec,v.audio_codec,v.media_width,v.media_height,v.media_fps,v.duration_seconds,
        (EXISTS(SELECT 1 FROM playlist_items p WHERE p.video_id=v.id) OR
@@ -281,7 +317,7 @@ app.get('/api/videos/:id/file',auth,async(req,res,next)=>{
   try{
     if(!uuid(req.params.id))return res.status(404).json({error:'Video inexistente'});
     const a=await pool.query('SELECT * FROM videos WHERE id=$1',[req.params.id]);const v=a.rows[0];
-    if(!v|| (req.user.role!=='admin'&&v.client_id!==req.user.client_id))return res.status(404).json({error:'Video inexistente'});
+    if(!v|| (req.user.role!=='admin'&&(v.client_id!==req.user.client_id||v.uploader_id!==req.user.id)))return res.status(404).json({error:'Video inexistente'});
     if(!isManagedVideoName(v.stored_name,v.id))return res.status(500).json({error:'Archivo inválido'});
     const filename=path.join(UPLOAD_DIR,v.stored_name);
     res.type('mp4');res.setHeader('Content-Disposition', `inline; filename="${v.id}.mp4"`);
@@ -356,12 +392,16 @@ app.post('/api/videos/:id/unpublish',auth,adminOnly,async(req,res,next)=>{
 
 // Borrado definitivo robusto: DB + cola persistente de eliminación de MP4.
 // La cola evita perder archivos si Windows los tiene abiertos durante un intento.
-app.delete('/api/videos/:id',auth,adminOnly,async(req,res,next)=>{
+app.delete('/api/videos/:id',auth,async(req,res,next)=>{
   try{
     if(!uuid(req.params.id))return res.status(404).json({error:'Video inexistente'});
     if(req.body?.confirm!==true)return res.status(400).json({error:'Confirmación requerida para eliminar definitivamente'});
     const result=await transaction(async c=>{
-      const r=await c.query('SELECT id,stored_name FROM videos WHERE id=$1 FOR UPDATE',[req.params.id]);
+      const admin=req.user.role==='admin';
+      const r=await c.query(
+        'SELECT id,stored_name FROM videos WHERE id=$1'+
+        (admin?'':' AND client_id=$2 AND uploader_id=$3')+' FOR UPDATE',
+        admin?[req.params.id]:[req.params.id,req.user.client_id,req.user.id]);
       if(!r.rowCount)return null;
       const video=r.rows[0];
       if(!isManagedVideoName(video.stored_name,video.id))

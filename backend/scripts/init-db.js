@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { pool } from '../src/db.js';
 const sqlDir=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../sql');
 const migrations=['003_programaciones.sql','004_admin_delete_unpublish.sql',
-  '005_usuarios_accesos.sql','006_preparacion_produccion.sql','007_dispositivos_remotos.sql'];
+  '005_usuarios_accesos.sql','006_preparacion_produccion.sql','007_dispositivos_remotos.sql','008_reproduccion_cliente.sql'];
 try {
   await pool.query(await fs.readFile(path.join(sqlDir,'schema.sql'),'utf8'));
   for(const name of migrations)await pool.query(await fs.readFile(path.join(sqlDir,'migrations',name),'utf8'));

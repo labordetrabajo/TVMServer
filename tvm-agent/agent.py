@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import sys
 import tempfile
 import time
@@ -216,6 +217,33 @@ class Agent:
         if changed:
             atomic_json(self.managed_path, self.managed)
 
+    def playing_video_id(self, inventory):
+        """Read the current MPV path via the Player's existing local socket."""
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+                conn.settimeout(0.5)
+                conn.connect(str(self.player / 'logs' / 'tvm-mpv.sock'))
+                conn.sendall(b'{"command":["get_property","path"],"request_id":1}\n')
+                with conn.makefile('rb') as stream:
+                    for _ in range(16):
+                        line = stream.readline(4096)
+                        if not line.endswith(b'\n'):
+                            return None
+                        response = json.loads(line)
+                        if response.get('request_id') != 1:
+                            continue
+                        current = response.get('data')
+                        if response.get('error') != 'success' or not isinstance(current, str):
+                            return None
+                        for video in inventory:
+                            vid = video['videoId']
+                            if Path(current) == self.videos / video_filename(vid):
+                                return vid
+                        return None
+        except (OSError, ValueError, AttributeError):
+            return None
+        return None
+
     def report(self, payload, error):
         disk = shutil.disk_usage(self.videos)
         files = []
@@ -234,7 +262,8 @@ class Agent:
                   'videoBytes': sum(f['bytes'] for f in files), 'files': files,
                   'playlistVersion': str(payload['playlistVersion'] if all_ready and not error else self.state.get('lastAckVersion','0')),
                   'cleanupAck': int(payload['cleanupGeneration']) if not error else self.state.get('lastCleanupAck', 0),
-                  'lastError': str(error)[:500] if error else None}
+                  'lastError': str(error)[:500] if error else None,
+                  'playingVideoId': self.playing_video_id(files)}
         self.request('report', method='POST', body=report)
         if not error:
             changed = self.state.get('lastCleanupAck') != report['cleanupAck']

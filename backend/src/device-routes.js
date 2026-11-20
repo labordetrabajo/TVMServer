@@ -62,6 +62,16 @@ async function hashIfMissing(v){
   return digest;
 }
 
+async function removeTotemPublication(c,totemId,videoId,{alwaysQueue=false}={}){
+  const manual=await c.query('DELETE FROM playlist_items WHERE totem_id=$1 AND video_id=$2',[totemId,videoId]);
+  const scheduled=await c.query(`UPDATE scheduled_publications SET status='cancelled'
+    WHERE totem_id=$1 AND video_id=$2 AND status IN ('scheduled','active')`,[totemId,videoId]);
+  if(alwaysQueue||manual.rowCount||scheduled.rowCount){
+    await c.query(`UPDATE totems SET playlist_version=playlist_version+1,
+      device_cleanup_generation=device_cleanup_generation+1 WHERE id=$1`,[totemId]);
+  }
+}
+
 export function registerDeviceRoutes(app,{auth,adminOnly}){
   app.post('/api/admin/totems/:id/pair',auth,adminOnly,async(req,res,next)=>{
     try{
@@ -69,7 +79,7 @@ export function registerDeviceRoutes(app,{auth,adminOnly}){
       if(req.body?.confirm!==true)return res.status(400).json({error:'Confirmá la vinculación. Una clave anterior dejará de funcionar.'});
       const token=crypto.randomBytes(32).toString('hex');
       const r=await pool.query(`UPDATE totems SET device_token_hash=$2,last_seen=NULL,
-        device_synced_version=NULL,device_last_error=NULL WHERE id=$1 RETURNING id,code`,[req.params.id,sha256(token)]);
+        device_synced_version=NULL,device_last_error=NULL,device_playing_video_id=NULL WHERE id=$1 RETURNING id,code`,[req.params.id,sha256(token)]);
       if(!r.rowCount)return res.status(404).json({error:'Tótem inexistente'});
       // Si se extravía, emitir otra clave. Nunca se vuelve a mostrar.
       res.json({ok:true,code:r.rows[0].code,token});
@@ -90,6 +100,27 @@ export function registerDeviceRoutes(app,{auth,adminOnly}){
       res.json({totem:{...t,connectionStatus:deviceStatus(t),files:files.map(f=>({videoId:f.videoId,bytes:f.bytes,name:names.get(f.videoId)||`Archivo ${String(f.videoId).slice(0,8)} (sin registro en servidor)`}))}});
     }catch(e){next(e)}
   });
+  app.post('/api/client/totems/:id/videos/:videoId/remove',auth,async(req,res,next)=>{
+    try{
+      if(req.user.role!=='client')return res.sendStatus(403);
+      const {id,videoId}=req.params;
+      if(!uuid(id)||!uuid(videoId))return res.status(400).json({error:'Datos inválidos'});
+      if(req.body?.confirm!==true)return res.status(400).json({error:'Confirmación requerida'});
+      const removed=await transaction(async c=>{
+        const video=await c.query(`SELECT id FROM videos
+          WHERE id=$1 AND client_id=$2 AND uploader_id=$3 FOR UPDATE`,
+          [videoId,req.user.client_id,req.user.id]);
+        if(!video.rowCount)return false;
+        const totem=await c.query('SELECT id FROM totems WHERE id=$1 AND client_id=$2 FOR UPDATE',
+          [id,req.user.client_id]);
+        if(!totem.rowCount)return false;
+        await removeTotemPublication(c,id,videoId);
+        return true;
+      });
+      if(!removed)return res.status(404).json({error:'Tótem o video inexistente'});
+      res.json({ok:true});
+    }catch(e){next(e);}
+  });
   app.post('/api/admin/totems/:id/videos/:videoId/remove',auth,adminOnly,async(req,res,next)=>{
     try{
       if(!uuid(req.params.id)||!uuid(req.params.videoId))return res.status(400).json({error:'Datos inválidos'});
@@ -100,11 +131,7 @@ export function registerDeviceRoutes(app,{auth,adminOnly}){
         // Si el MP4 aún está en la biblioteca debe pertenecer a este cliente.
         const v=await c.query('SELECT client_id FROM videos WHERE id=$1',[req.params.videoId]);
         if(v.rowCount && v.rows[0].client_id!==t.rows[0].client_id)return false;
-        await c.query('DELETE FROM playlist_items WHERE totem_id=$1 AND video_id=$2',[req.params.id,req.params.videoId]);
-        await c.query(`UPDATE scheduled_publications SET status='cancelled'
-          WHERE totem_id=$1 AND video_id=$2 AND status IN ('scheduled','active')`,[req.params.id,req.params.videoId]);
-        await c.query(`UPDATE totems SET playlist_version=playlist_version+1,
-          device_cleanup_generation=device_cleanup_generation+1 WHERE id=$1`,[req.params.id]);
+        await removeTotemPublication(c,req.params.id,req.params.videoId,{alwaysQueue:true});
         return true;
       });
       if(result===null)return res.status(404).json({error:'Tótem inexistente'});
@@ -153,16 +180,18 @@ export function registerDeviceRoutes(app,{auth,adminOnly}){
   });
   app.post('/api/device/report',deviceAuth,async(req,res,next)=>{
     try{
-      const {totalBytes,usedBytes,freeBytes,videoBytes,files,playlistVersion,cleanupAck,lastError}=req.body||{};
+      const {totalBytes,usedBytes,freeBytes,videoBytes,files,playlistVersion,cleanupAck,lastError,playingVideoId}=req.body||{};
       if(![totalBytes,usedBytes,freeBytes,videoBytes].every(validDisk) || !validInventory(files) ||
         !/^\d{1,18}$/.test(String(playlistVersion)) || !Number.isSafeInteger(cleanupAck) || cleanupAck<0 ||
+        (playingVideoId!=null && (!uuid(playingVideoId)||!files.some(f=>f.videoId===playingVideoId))) ||
         (lastError!=null && (typeof lastError!=='string'||lastError.length>500)))
         return res.status(400).json({error:'Informe de dispositivo inválido'});
       const r=await pool.query(`UPDATE totems SET last_seen=now(),device_reported_at=now(),
           device_disk_total=$2,device_disk_used=$3,device_disk_free=$4,device_video_bytes=$5,
           device_files=$6::jsonb,device_synced_version=$7::bigint,device_last_error=$8,
-          device_cleanup_ack=GREATEST(device_cleanup_ack,LEAST($9,device_cleanup_generation))
-          WHERE id=$1 RETURNING id`,[req.device.id,totalBytes,usedBytes,freeBytes,videoBytes,JSON.stringify(files),playlistVersion,lastError||null,cleanupAck]);
+          device_cleanup_ack=GREATEST(device_cleanup_ack,LEAST($9,device_cleanup_generation)),
+          device_playing_video_id=$10
+          WHERE id=$1 RETURNING id`,[req.device.id,totalBytes,usedBytes,freeBytes,videoBytes,JSON.stringify(files),playlistVersion,lastError||null,cleanupAck,playingVideoId??null]);
       res.json({ok:true});
     }catch(e){next(e)}
   });

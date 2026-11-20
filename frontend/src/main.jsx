@@ -86,26 +86,37 @@ function DateTimeField({label,value,onChange,required=false,min='',disabled=fals
   </div>;
 }
 function App(){
-  const[user,setUser]=useState(undefined),[page,setPage]=useState('videos'),[clients,setClients]=useState([]),[totems,setTotems]=useState([]),[videos,setVideos]=useState([]),[schedules,setSchedules]=useState([]),[users,setUsers]=useState([]),[storage,setStorage]=useState(null),[error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[selectedTotem,setSelectedTotem]=useState('');
+  const[user,setUser]=useState(undefined),[page,setPage]=useState('videos'),[clients,setClients]=useState([]),[totems,setTotems]=useState([]),[videos,setVideos]=useState([]),[schedules,setSchedules]=useState([]),[users,setUsers]=useState([]),[storage,setStorage]=useState(null),[error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[selectedTotem,setSelectedTotem]=useState(''),[clientPlaylists,setClientPlaylists]=useState(null);
   const admin=user?.role==='admin';
+  const activeUser=useRef(user);
+  const [loadedUser,setLoadedUser]=useState(null);
+  activeUser.current=user;
   const fetchAll=async()=>{
-    const results=await Promise.all([admin?api('/clients'):Promise.resolve({clients:[]}),api('/totems'),api('/videos'),admin?api('/schedules'):Promise.resolve({schedules:[]}),admin?api('/users'):Promise.resolve({users:[]}),admin?api('/admin/storage'):Promise.resolve(null)]);
-    setClients(results[0].clients);setTotems(results[1].totems);setVideos(results[2].videos);setSchedules(results[3].schedules);setUsers(results[4].users);setStorage(results[5]);
+    const results=await Promise.all([admin?api('/clients'):Promise.resolve({clients:[]}),api('/totems'),api('/videos'),admin?api('/schedules'):Promise.resolve({schedules:[]}),admin?api('/users'):Promise.resolve({users:[]}),admin?api('/admin/storage'):Promise.resolve(null),admin?Promise.resolve(null):api('/client/playlists')]);
+    if(activeUser.current!==user)return;
+    setLoadedUser(user);
+    setClients(results[0].clients);setTotems(results[1].totems);setVideos(results[2].videos);setSchedules(results[3].schedules);setUsers(results[4].users);setStorage(results[5]);setClientPlaylists(results[6]?.totems??null);
   };
   useEffect(()=>{api('/auth/me').then(r=>setUser(r.user)).catch(()=>setUser(null))},[]);
   useEffect(()=>{if(user){fetchAll().catch(e=>setError(e.message))}},[user]);
-  useEffect(()=>{if(!user||user.role!=='admin')return;const timer=setInterval(()=>fetchAll().catch(()=>{}),30000);return ()=>clearInterval(timer)},[user]);
+  useEffect(()=>{if(!user||(!admin&&page!=='client-playlists'))return;const timer=setInterval(()=>fetchAll().catch(()=>{
+    if(!admin&&activeUser.current===user)setClientPlaylists(null);
+  }),admin?30000:15000);return ()=>clearInterval(timer)},[user,page]);
   function showError(e){setMessage('');setError(e.message)}
   async function perform(fn,{onError}={}){setBusy(true);setError('');setMessage('');try{const result=await fn();const msg=typeof result==='object'?result.msg:result;setMessage(msg||'Cambios guardados');if(!result?.skipRefresh){try{await fetchAll()}catch(e){setError('La operación se guardó, pero no pudimos actualizar la lista. Tocá Actualizar para ver los cambios.')}}}catch(e){if(onError)onError(e);else showError(e)}finally{setBusy(false)}}
-  async function logout(){try{await api('/auth/logout',{method:'POST'});}finally{setUser(null)}}
+  async function logout(){try{await api('/auth/logout',{method:'POST'});}finally{activeUser.current=null;setPage('videos');setUser(null)}}
   if(user===undefined)return <div className="loading">Cargando Totem Video Manager...</div>;
-  if(!user)return <Login onLogin={setUser}/>;
+  if(!user)return <Login onLogin={next=>{setError('');setMessage('');setPage('videos');setUser(next)}}/>;
+  if(loadedUser!==user)return <div className="loading">
+    {error?<><p role="alert">{error}</p><button className="ghost" onClick={()=>fetchAll().catch(showError)}>Reintentar</button> <button className="ghost" onClick={logout}>Salir</button></>:'Cargando panel…'}
+  </div>;
   const pendingCount=videos.filter(v=>v.status==='pending').length;
-  const links=[['videos','Videos'],['totems','Tótems'],...(admin?[['alerts','Avisos'],['clients','Clientes'],['users','Usuarios'],['admins','Administradores'],['agenda','Agenda'],['playlists','Publicaciones'],['storage','Almacenamiento']]:[])];
-  return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-logo-box"><GyALogo compact/></div><div className="brand-product"><span>TVM SERVER</span><strong>Totem Video Manager</strong></div></div><div className="menu-label">PLATAFORMA DE CONTENIDOS</div><nav>{links.map(([key,label])=><button key={key} onClick={()=>{setPage(key);setError('');setMessage('')}} className={page===key?'active':''}>{label}{key==='alerts'&&pendingCount>0&&<span className="nav-count">{pendingCount}</span>}</button>)}</nav><div className="sidebar-foot"><div className="avatar">{user.email[0]?.toUpperCase()}</div><div className="user-info"><strong>{user.role==='admin'?'Administrador':'Cliente'}</strong><span title={user.email}>{user.email}</span></div><button className="signout" onClick={logout} title="Cerrar sesión">Salir</button></div></aside><main><header className="top"><div><span className="eyebrow">GYA DIGITAL / GESTIÓN CENTRALIZADA</span><h1>{links.find(l=>l[0]===page)?.[1]||'Panel'}</h1></div><div className="top-tools"><span className="online-dot"/> Panel conectado <button className="ghost" onClick={()=>perform(async()=>{await fetchAll();return 'Datos actualizados'})}>Actualizar</button></div></header><div className="main-content">{error&&<div className="alert" role="alert">{error}<button onClick={()=>setError('')}>×</button></div>}{message&&<div className="notice">{message}<button onClick={()=>setMessage('')}>×</button></div>}
+  const links=[['videos',admin?'Videos':'Publicaciones'],...(!admin?[['client-playlists','Listas de reproducción']]:[]),['totems','Tótems'],...(admin?[['alerts','Avisos'],['clients','Clientes'],['users','Usuarios'],['admins','Administradores'],['agenda','Agenda'],['playlists','Publicaciones'],['storage','Almacenamiento']]:[])];
+  return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-logo-box"><GyALogo compact/></div><div className="brand-product"><span>TVM SERVER</span><strong>Totem Video Manager</strong></div></div><div className="menu-label">PLATAFORMA DE CONTENIDOS</div><nav>{links.map(([key,label])=><button key={key} onClick={()=>{setPage(key);setError('');setMessage('')}} className={page===key?'active':''}>{label}{key==='alerts'&&pendingCount>0&&<span className="nav-count">{pendingCount}</span>}</button>)}</nav><div className="sidebar-foot"><div className="avatar">{user.email[0]?.toUpperCase()}</div><div className="user-info"><strong>{user.role==='admin'?'Administrador':'Cliente'}</strong><span title={user.email}>{user.email}</span></div><button className="signout" onClick={logout} title="Cerrar sesión">Salir</button></div></aside><main><header className="top"><div><span className="eyebrow">GYA DIGITAL / GESTIÓN CENTRALIZADA</span><h1>{links.find(l=>l[0]===page)?.[1]||'Panel'}</h1></div><div className="top-tools"><span className="online-dot"/> Panel conectado <button className="ghost" onClick={()=>perform(async()=>{await fetchAll();return {msg:'Datos actualizados',skipRefresh:true}})}>Actualizar</button></div></header><div className="main-content">{error&&<div className="alert" role="alert">{error}<button onClick={()=>setError('')}>×</button></div>}{message&&<div className="notice">{message}<button onClick={()=>setMessage('')}>×</button></div>}
     {page==='alerts'&&admin&&<AlertsPage videos={videos} schedules={schedules} storage={storage} onGoVideos={()=>setPage('videos')} onGoAgenda={()=>setPage('agenda')}/>}
     {page==='storage'&&admin&&<StoragePage storage={storage} onRefresh={()=>perform(async()=>{await fetchAll();return 'Almacenamiento actualizado'})}/>}
     {page==='videos'&&<VideosPage admin={admin} clients={clients} totems={totems} videos={videos} busy={busy} run={perform}/>}
+    {page==='client-playlists'&&!admin&&<ClientPlaylists totems={clientPlaylists} busy={busy} run={perform}/> }
     {page==='totems'&&<TotemsPage admin={admin} clients={clients} totems={totems} busy={busy} run={perform}/>}
     {page==='agenda'&&admin&&<AgendaPage videos={videos} totems={totems} schedules={schedules} clients={clients} busy={busy} run={perform}/>}
     {page==='clients'&&admin&&<ClientsPage clients={clients} busy={busy} run={perform}/>}
@@ -203,6 +214,7 @@ function VideosPage({admin,clients,totems,videos,busy,run}){
   const [approvalMode,setApprovalMode]=useState('pending'),[directTotems,setDirectTotems]=useState([]),[authorizeId,setAuthorizeId]=useState(null),[previewId,setPreviewId]=useState(null);
   const [uploadError,setUploadError]=useState(null),[uploadRules,setUploadRules]=useState(null);
   const uploadErrorRef=useRef(null);
+  const [tab,setTab]=useState('publish');
   useEffect(()=>{let active=true;api('/videos/upload-rules').then(r=>{if(active)setUploadRules(r)}).catch(()=>{});return ()=>{active=false}},[]);
   useEffect(()=>{if(uploadError&&uploadErrorRef.current){uploadErrorRef.current.focus();uploadErrorRef.current.scrollIntoView({behavior:'smooth',block:'center'})}},[uploadError]);
   const currentClientTotems=totems.filter(t=>t.client_id===clientId);
@@ -222,21 +234,28 @@ function VideosPage({admin,clients,totems,videos,busy,run}){
     if(admin&&approvalMode==='publish'&&!directTotems.length){invalid('Para publicar directamente elegí al menos un tótem.');return;}
     if(admin&&approvalMode==='publish'&&!confirm(`¿Autorizar y ${startsAt?'programar':'publicar ahora'} este archivo en ${directTotems.length} tótem(s)?`))return;
     await run(async()=>{
+      const form=e.currentTarget||e.target;
       const data=new FormData();data.append('video',file);
       if(admin){data.append('clientId',clientId);data.append('approvalMode',approvalMode);if(approvalMode==='publish')data.append('totemIds',JSON.stringify(directTotems));}
       data.append('note',note);
       if(startsAt)data.append('requestedStartAt',isoDateTime(startsAt));
       if(endsAt)data.append('requestedEndAt',isoDateTime(endsAt));
       await api('/videos',{method:'POST',body:data});
-      setFile(null);setNote('');setStartsAt('');setEndsAt('');setDirectTotems([]);e.target.reset();
+      setFile(null);setNote('');setStartsAt('');setEndsAt('');setDirectTotems([]);form.reset();
+      if(!admin)setTab('history');
       return admin&&approvalMode==='publish'?`Video aprobado y ${startsAt?'programado':'publicado'} en ${directTotems.length} tótem(s).`:'Video recibido. GyA deberá autorizar y asignar los tótems.';
     },{onError:error=>setUploadError(explainUploadError(error,uploadRules?.maxUploadMb))});
   }
   const pending=videos.filter(v=>v.status==='pending').length;
   return <>
     {previewVideo&&<VideoPreview video={previewVideo} onClose={()=>setPreviewId(null)}/>}
+    {!admin&&<div className="publication-tabs" aria-label="Publicaciones">
+      <button type="button" aria-pressed={tab==='publish'} onClick={()=>setTab('publish')}>Publicar</button>
+      <button type="button" aria-pressed={tab==='history'} onClick={()=>setTab('history')}>Historial</button>
+    </div>}
     <div className="stats"><Stat label="Total de videos" value={videos.length}/><Stat label="Pendientes de revisión" value={pending}/><Stat label="Aprobados" value={videos.filter(v=>v.status==='approved').length}/></div>
-    <Section title="Subir un video" subtitle={admin?'Carga por cuenta de cualquier cliente. Podés dejarlo pendiente o autorizarlo y publicarlo directamente.':'Cargá tu MP4, una nota y la fecha solicitada. GyA revisará y autorizará la campaña.'}>
+    <div hidden={!admin&&tab!=='publish'}>
+    <Section title={admin?'Subir un video':'Publicar un video'} subtitle={admin?'Carga por cuenta de cualquier cliente. Podés dejarlo pendiente o autorizarlo y publicarlo directamente.':'Cargá tu MP4, una nota y la fecha solicitada. GyA revisará y autorizará la campaña.'}>
       <VideoUploadGuide rules={uploadRules}/>
       <form onSubmit={upload} className="upload-form">
         {uploadError&&<div className="upload-error" role="alert" aria-live="assertive" tabIndex={-1} ref={uploadErrorRef}>
@@ -256,14 +275,55 @@ function VideosPage({admin,clients,totems,videos,busy,run}){
       </form>
       <div className="helper">El archivo conserva su nombre original en el panel. El servidor verifica códec, resolución y FPS cuando FFprobe está disponible. Si no puede inspeccionarlo, figurará «Sin verificar» hasta que el administrador lo revise.</div>
     </Section>
+    </div>
     {admin&&authorization&&<AuthorizePanel key={authorization.id} video={authorization} totems={totems} busy={busy} run={run} onClose={()=>setAuthorizeId(null)}/>}
-    <Section title={admin?'Biblioteca de todos los clientes':'Mis videos'} subtitle="Los videos de los clientes requieren autorización de GyA. Solo el administrador puede despublicar o borrar.">
+    {(admin||tab==='history')&&<Section title={admin?'Biblioteca de todos los clientes':'Historial'} subtitle={admin?'Los videos de los clientes requieren autorización de GyA.':'Consultá el estado de los videos que enviaste.'}>
       <div className="table-wrapper"><table><thead><tr><th>Archivo</th>{admin&&<th>Cliente</th>}<th>Nota</th><th>Publicación solicitada</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
-        {videos.map(v=><tr key={v.id}><td className="filename" title={v.originalName}>{v.originalName}<div className="secondary-small">{readableBytes(v.size)} · {asDate(v.uploadedAt)}</div><MediaBadge video={v}/>{v.status==='rejected'&&v.rejectionReason&&<div className="rejection-reason"><strong>Motivo:</strong> {v.rejectionReason}</div>}</td>{admin&&<td>{v.clientName}</td>}<td className="note-col" title={v.note||''}>{v.note||'—'}</td><td>{asDate(v.requestedStartAt)}{v.requestedEndAt&&<div className="secondary-small">Hasta: {asDate(v.requestedEndAt)}</div>}</td><td><span className={'pill '+v.status}>{statuses[v.status]}</span></td><td className="row-actions"><button className="preview-action" type="button" onClick={()=>setPreviewId(v.id)}>▶ Vista previa</button>{admin&&v.mediaValidation!=='compatible'&&<button className="preview-action" type="button" disabled={busy} onClick={()=>run(async()=>{const r=await api('/videos/'+v.id+'/verify',{method:'POST'});return r.mediaValidation==='compatible'?'Archivo compatible con Raspberry Pi 3.':'Sin FFprobe: archivo todavía no verificado.'})}>Verificar MP4</button>}{admin&&v.status!=='rejected'&&<button disabled={busy} className="authorize-action" onClick={()=>setAuthorizeId(v.id)}>{v.status==='pending'?'Autorizar y programar':'Programar en tótems'}</button>}{admin&&v.status!=='rejected'&&<button className="danger-text" disabled={busy} onClick={()=>{const reason=prompt('Motivo del rechazo (lo verá el cliente):');if(reason===null)return;if(reason.trim().length<5){alert('Ingresá al menos 5 caracteres');return;}if(!confirm('¿Rechazar el video y retirar todas sus publicaciones?'))return;run(async()=>{await api('/videos/'+v.id+'/status',{method:'PATCH',body:JSON.stringify({status:'rejected',reason:reason.trim()})});return 'Video rechazado. El cliente verá el motivo.'})}}>Rechazar</button>}{admin&&v.hasPublications&&<button className="unpublish-action" disabled={busy} onClick={()=>{if(!confirm('¿Despublicar «'+v.originalName+'»? Se retirará de las listas y se cancelarán sus campañas, pero se conservará el MP4.'))return;run(async()=>{const r=await api('/videos/'+v.id+'/unpublish',{method:'POST'});return 'Video despublicado en '+r.removedFrom+' tótem(s).'})}}>Despublicar</button>}{admin&&<button className="delete-action" disabled={busy} onClick={()=>{if(!confirm('¿ELIMINAR DEFINITIVAMENTE «'+v.originalName+'»? Se eliminará el MP4 y todas sus programaciones.'))return;run(async()=>{const r=await api('/videos/'+v.id,{method:'DELETE',body:JSON.stringify({confirm:true})});return r.cleanupPending?'Video eliminado del sistema; borrado físico pendiente de reintento.':'Video eliminado definitivamente.'})}}>Eliminar</button>}</td></tr>)}
+        {videos.map(v=><tr key={v.id}><td className="filename" title={v.originalName}>{v.originalName}<div className="secondary-small">{readableBytes(v.size)} · {asDate(v.uploadedAt)}</div><MediaBadge video={v}/>{v.status==='rejected'&&v.rejectionReason&&<div className="rejection-reason"><strong>Motivo:</strong> {v.rejectionReason}</div>}</td>{admin&&<td>{v.clientName}</td>}<td className="note-col" title={v.note||''}>{v.note||'—'}</td><td>{asDate(v.requestedStartAt)}{v.requestedEndAt&&<div className="secondary-small">Hasta: {asDate(v.requestedEndAt)}</div>}</td><td><span className={'pill '+v.status}>{statuses[v.status]}</span></td><td className="row-actions"><button className="preview-action" type="button" onClick={()=>setPreviewId(v.id)}>▶ Vista previa</button>{admin&&v.mediaValidation!=='compatible'&&<button className="preview-action" type="button" disabled={busy} onClick={()=>run(async()=>{const r=await api('/videos/'+v.id+'/verify',{method:'POST'});return r.mediaValidation==='compatible'?'Archivo compatible con Raspberry Pi 3.':'Sin FFprobe: archivo todavía no verificado.'})}>Verificar MP4</button>}{admin&&v.status!=='rejected'&&<button disabled={busy} className="authorize-action" onClick={()=>setAuthorizeId(v.id)}>{v.status==='pending'?'Autorizar y programar':'Programar en tótems'}</button>}{admin&&v.status!=='rejected'&&<button className="danger-text" disabled={busy} onClick={()=>{const reason=prompt('Motivo del rechazo (lo verá el cliente):');if(reason===null)return;if(reason.trim().length<5){alert('Ingresá al menos 5 caracteres');return;}if(!confirm('¿Rechazar el video y retirar todas sus publicaciones?'))return;run(async()=>{await api('/videos/'+v.id+'/status',{method:'PATCH',body:JSON.stringify({status:'rejected',reason:reason.trim()})});return 'Video rechazado. El cliente verá el motivo.'})}}>Rechazar</button>}{admin&&v.hasPublications&&<button className="unpublish-action" disabled={busy} onClick={()=>{if(!confirm('¿Despublicar «'+v.originalName+'»? Se retirará de las listas y se cancelarán sus campañas, pero se conservará el MP4.'))return;run(async()=>{const r=await api('/videos/'+v.id+'/unpublish',{method:'POST'});return 'Video despublicado en '+r.removedFrom+' tótem(s).'})}}>Despublicar</button>}<button className="delete-action" disabled={busy} onClick={()=>{if(!confirm('¿ELIMINAR DEFINITIVAMENTE «'+v.originalName+'»? Se eliminará el MP4 y se retirará de las listas y de la programación.'))return;run(async()=>{const r=await api('/videos/'+v.id,{method:'DELETE',body:JSON.stringify({confirm:true})});return r.cleanupPending?'Video eliminado del sistema; borrado físico pendiente de reintento.':'Video eliminado definitivamente.'})}}>Eliminar</button></td></tr>)}
         {!videos.length&&<tr><td colSpan={admin?6:5} className="empty">Todavía no hay videos cargados.</td></tr>}
       </tbody></table></div>
-    </Section>
+    </Section>}
   </>;
+}
+
+function ClientPlaylists({totems,busy,run}){
+  function remove(totem,video){
+    if(!confirm(`¿Retirar «${video.name}» de ${totem.code}? Se cancelarán sus programaciones en este tótem. El video seguirá en Historial.`))return;
+    run(async()=>{
+      await api(`/client/totems/${totem.id}/videos/${video.id}/remove`,{
+        method:'POST',body:JSON.stringify({confirm:true})
+      });
+      return 'Video retirado de la lista. El tótem lo aplicará al sincronizar.';
+    });
+  }
+  if(totems===null)return <p className="helper">Cargando listas de reproducción…</p>;
+  if(!totems.length)return <Section title="Tus tótems" subtitle="Todavía no hay tótems asignados a tu cuenta."/>;
+  return <div className="client-playlists">
+    {totems.map(totem=>{
+      const reported=totem.items.find(video=>video.id===(totem.playingId||totem.lastPlayedId));
+      return <section className="section client-playlist" key={totem.id}>
+        <header><h2>{totem.code}</h2><span className={'pill '+(totem.online?'approved':'client-offline')}>{totem.online?'En línea':'Sin conexión'}</span></header>
+        {reported&&<div className="client-playback">
+          <span>{totem.playingId?'Reproduciendo ahora':'Último video informado'}</span>
+          <strong>{reported.name}</strong>
+        </div>}
+        {totem.items.length>0&&<ol className="client-playlist-items" aria-label="Videos propios asignados">
+          {totem.items.map(video=><li key={video.id} className={video.id===totem.playingId?'playing':''}>
+            <div className="client-playlist-row"><span>{video.name}</span>
+              <button type="button" className="playlist-remove" disabled={busy}
+                title="Retirar de este tótem" aria-label={`Retirar ${video.name} de ${totem.code}`}
+                onClick={()=>remove(totem,video)}>
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>
+                </svg>
+              </button>
+            </div>
+          </li>)}
+        </ol>}
+      </section>;
+    })}
+  </div>;
 }
 function Stat({label,value}){return <div className="stat"><span>{label}</span><strong>{value}</strong></div>}
 function ClientsPage({clients,busy,run}){
