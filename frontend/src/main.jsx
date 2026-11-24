@@ -51,7 +51,7 @@ function Login({onLogin}){
   const submit=async(e)=>{e.preventDefault();setBusy(true);setError('');try{const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});onLogin(r.user);}catch(e){setError(e.message)}finally{setBusy(false)}};
   return <div className="login-screen"><div className="login-wave" aria-hidden="true"/><div className="login-card"><div className="login-card-header"><GyALogo/><span className="product-badge">TVM SERVER</span></div><div className="brand-large">Totem Video Manager</div><p>Administrá el contenido de tus tótems desde un solo lugar.</p><h2>Ingresar a mi cuenta</h2><form onSubmit={submit}><label>Correo electrónico<input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Contraseña<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button className="primary full" disabled={busy}>{busy?'Ingresando...':'Iniciar sesión'}</button>{error&&<p className="alert">{error}</p>}</form><small>TVM Server v0.4 · GyA Digital · Acceso protegido</small></div></div>
 }
-function Section({title,subtitle,children,toolbar}){return <section className="section"><div className="section-head"><div><h2>{title}</h2><p>{subtitle}</p></div>{toolbar}</div>{children}</section>}
+function Section({title,subtitle,children,toolbar}){return <section className="section"><div className="section-head"><div><h2>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div>{toolbar}</div>{children}</section>}
 function Field({label,children}){return <label>{label}{children}</label>}
 // Selector de fecha y horario sin los controles de ruedita del navegador.
 // Sigue emitiendo "YYYY-MM-DDTHH:mm", igual que los campos anteriores.
@@ -85,9 +85,35 @@ function DateTimeField({label,value,onChange,required=false,min='',disabled=fals
     <div className="datetime-hint">{date?`Seleccionado: ${date.split('-').reverse().join('/')} a las ${hour}:${minute} hs`:'Elegí la fecha y después la hora y los minutos.'}</div>
   </div>;
 }
+const normalizeSearchText=name=>(name||'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('es').trim();
+
+function SearchFilter({label,placeholder,value,onChange,resultText}){
+  return <div className="search-filter">
+    <label>
+      {label}
+      <span className="search-filter-input">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/>
+        </svg>
+        <input type="search" placeholder={placeholder} value={value} onChange={e=>onChange(e.target.value)}/>
+      </span>
+    </label>
+    {resultText&&<span className="helper" role="status">{resultText}</span>}
+  </div>;
+}
+
+function PanelTabs({label,options,selected,onSelect}){
+  return <div className="publication-tabs admin-tabs" role="group" aria-label={label}>
+    {options.map(([key,name])=><button key={key} type="button" aria-pressed={selected===key}
+      onClick={()=>onSelect(key)}>{name}</button>)}
+  </div>;
+}
+
 function App(){
   const[user,setUser]=useState(undefined),[page,setPage]=useState('videos'),[clients,setClients]=useState([]),[totems,setTotems]=useState([]),[videos,setVideos]=useState([]),[schedules,setSchedules]=useState([]),[users,setUsers]=useState([]),[storage,setStorage]=useState(null),[error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[selectedTotem,setSelectedTotem]=useState(''),[clientPlaylists,setClientPlaylists]=useState(null);
   const admin=user?.role==='admin';
+  const [adminSection,setAdminSection]=useState('clients');
+  const [totemSection,setTotemSection]=useState('devices');
   const activeUser=useRef(user);
   const [loadedUser,setLoadedUser]=useState(null);
   activeUser.current=user;
@@ -111,37 +137,33 @@ function App(){
     {error?<><p role="alert">{error}</p><button className="ghost" onClick={()=>fetchAll().catch(showError)}>Reintentar</button> <button className="ghost" onClick={logout}>Salir</button></>:'Cargando panel…'}
   </div>;
   const pendingCount=videos.filter(v=>v.status==='pending').length;
-  const links=[['videos',admin?'Videos':'Publicaciones'],...(!admin?[['client-playlists','Listas de reproducción']]:[]),['totems','Tótems'],...(admin?[['alerts','Avisos'],['clients','Clientes'],['users','Usuarios'],['admins','Administradores'],['agenda','Agenda'],['playlists','Publicaciones'],['storage','Almacenamiento']]:[])];
-  return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-logo-box"><GyALogo compact/></div><div className="brand-product"><span>TVM SERVER</span><strong>Totem Video Manager</strong></div></div><div className="menu-label">PLATAFORMA DE CONTENIDOS</div><nav>{links.map(([key,label])=><button key={key} onClick={()=>{setPage(key);setError('');setMessage('')}} className={page===key?'active':''}>{label}{key==='alerts'&&pendingCount>0&&<span className="nav-count">{pendingCount}</span>}</button>)}</nav><div className="sidebar-foot"><div className="avatar">{user.email[0]?.toUpperCase()}</div><div className="user-info"><strong>{user.role==='admin'?'Administrador':'Cliente'}</strong><span title={user.email}>{user.email}</span></div><button className="signout" onClick={logout} title="Cerrar sesión">Salir</button></div></aside><main><header className="top"><div><span className="eyebrow">GYA DIGITAL / GESTIÓN CENTRALIZADA</span><h1>{links.find(l=>l[0]===page)?.[1]||'Panel'}</h1></div><div className="top-tools"><span className="online-dot"/> Panel conectado <button className="ghost" onClick={()=>perform(async()=>{await fetchAll();return {msg:'Datos actualizados',skipRefresh:true}})}>Actualizar</button></div></header><div className="main-content">{error&&<div className="alert" role="alert">{error}<button onClick={()=>setError('')}>×</button></div>}{message&&<div className="notice">{message}<button onClick={()=>setMessage('')}>×</button></div>}
-    {page==='alerts'&&admin&&<AlertsPage videos={videos} schedules={schedules} storage={storage} onGoVideos={()=>setPage('videos')} onGoAgenda={()=>setPage('agenda')}/>}
-    {page==='storage'&&admin&&<StoragePage storage={storage} onRefresh={()=>perform(async()=>{await fetchAll();return 'Almacenamiento actualizado'})}/>}
-    {page==='videos'&&<VideosPage admin={admin} clients={clients} totems={totems} videos={videos} busy={busy} run={perform}/>}
-    {page==='client-playlists'&&!admin&&<ClientPlaylists totems={clientPlaylists} busy={busy} run={perform}/> }
-    {page==='totems'&&<TotemsPage admin={admin} clients={clients} totems={totems} busy={busy} run={perform}/>}
-    {page==='agenda'&&admin&&<AgendaPage videos={videos} totems={totems} schedules={schedules} clients={clients} busy={busy} run={perform}/>}
-    {page==='clients'&&admin&&<ClientsPage clients={clients} busy={busy} run={perform}/>}
-    {page==='users'&&admin&&<UsersPage users={users} me={user} busy={busy} run={perform} onSelfReset={()=>setUser(null)}/>}
-    {page==='admins'&&admin&&<AdminsPage users={users} me={user} busy={busy} run={perform} onSelfReset={()=>setUser(null)}/>}
-    {page==='playlists'&&admin&&<PlaylistsPage videos={videos} schedules={schedules} totems={totems} selected={selectedTotem} setSelected={setSelectedTotem} busy={busy} run={perform}/>}
+  const links=admin?[['videos','Publicaciones'],['totems','Tótems'],['administration','Administración']]:
+    [['videos','Publicaciones'],['client-playlists','Listas de reproducción'],['totems','Tótems']];
+  const adminSections=[['clients','Clientes'],['users','Usuarios'],['admins','Administradores'],['storage','Almacenamiento']];
+  return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-logo-box"><GyALogo compact/></div><div className="brand-product"><span>TVM SERVER</span><strong>Totem Video Manager</strong></div></div><div className="menu-label">PLATAFORMA DE CONTENIDOS</div><nav>{links.map(([key,label])=><button key={key} onClick={()=>{setPage(key);setError('');setMessage('')}} className={page===key?'active':''}>{label}{admin&&key==='videos'&&pendingCount>0&&<span className="nav-count">{pendingCount}</span>}</button>)}</nav><div className="sidebar-foot"><div className="avatar">{user.email[0]?.toUpperCase()}</div><div className="user-info"><strong>{user.role==='admin'?'Administrador':'Cliente'}</strong><span title={user.email}>{user.email}</span></div><button className="signout" onClick={logout} title="Cerrar sesión">Salir</button></div></aside><main><header className="top"><div><span className="eyebrow">GYA DIGITAL / GESTIÓN CENTRALIZADA</span><h1>{links.find(l=>l[0]===page)?.[1]||'Panel'}</h1></div><div className="top-tools"><span className="online-dot"/> Panel conectado <button className="ghost" onClick={()=>perform(async()=>{await fetchAll();return {msg:'Datos actualizados',skipRefresh:true}})}>Actualizar</button></div></header><div className="main-content">{error&&<div className="alert" role="alert">{error}<button onClick={()=>setError('')}>×</button></div>}{message&&<div className="notice">{message}<button onClick={()=>setMessage('')}>×</button></div>}
+    {admin&&storage?.disk&&storage.disk.freeBytes<3*1024**3&&<div className="warning-box">
+      Quedan {readableBytes(storage.disk.freeBytes)} libres en el servidor. <button className="ghost" onClick={()=>{setAdminSection('storage');setPage('administration')}}>Ver almacenamiento</button>
+    </div>}
+    {page==='videos'&&<VideosPage admin={admin} clients={clients} totems={totems} videos={videos} busy={busy} run={perform}
+      programming={admin&&<AgendaPage videos={videos} totems={totems} schedules={schedules} clients={clients} busy={busy} run={perform}/>}/>}
+    {page==='client-playlists'&&!admin&&<ClientPlaylists totems={clientPlaylists} busy={busy} run={perform}/>}
+    {page==='totems'&&<>
+      {admin&&<PanelTabs label="Tótems" options={ [['devices','Equipos'],['lists','Listas de reproducción']] }
+        selected={totemSection} onSelect={setTotemSection}/>}
+      {(!admin||totemSection==='devices')&&<TotemsPage admin={admin} clients={clients} totems={totems} busy={busy} run={perform}
+        onPlaylist={id=>{setSelectedTotem(id);setTotemSection('lists')}}/>}
+      {admin&&totemSection==='lists'&&<PlaylistsPage videos={videos} schedules={schedules} totems={totems}
+        selected={selectedTotem} setSelected={setSelectedTotem} busy={busy} run={perform}/>}
+    </>}
+    {page==='administration'&&admin&&<>
+      <PanelTabs label="Administración" options={adminSections} selected={adminSection} onSelect={setAdminSection}/>
+      {adminSection==='clients'&&<ClientsPage clients={clients} busy={busy} run={perform}/>}
+      {adminSection==='users'&&<UsersPage users={users} me={user} busy={busy} run={perform} onSelfReset={()=>setUser(null)}/>}
+      {adminSection==='admins'&&<AdminsPage users={users} me={user} busy={busy} run={perform} onSelfReset={()=>setUser(null)}/>}
+      {adminSection==='storage'&&<StoragePage storage={storage} onRefresh={()=>perform(async()=>{await fetchAll();return {msg:'Almacenamiento actualizado',skipRefresh:true}})}/>}
+    </>}
     <footer>TVM Server v0.4 · GyA Digital · Etapa 1 — Panel web. Sincronización Raspberry mediante agente independiente.</footer>
   </div></main></div>
-}
-function AlertsPage({videos,schedules,storage,onGoVideos,onGoAgenda}){
-  const pending=videos.filter(v=>v.status==='pending');
-  const next=schedules.filter(s=>s.status==='scheduled').sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at)).slice(0,8);
-  const disk=storage?.disk;
-  return <>
-    <div className="stats"><Stat label="Pendientes de aprobación" value={pending.length}/><Stat label="Campañas programadas" value={schedules.filter(s=>s.status==='scheduled').length}/><Stat label="Campañas activas" value={schedules.filter(s=>s.status==='active').length}/></div>
-    {disk&&disk.freeBytes<3*1024**3&&<div className="warning-box">Advertencia: quedan {readableBytes(disk.freeBytes)} libres en el disco del servidor. Revisá Almacenamiento.</div>}
-    <Section title="Videos que necesitan autorización" subtitle="Nuevas cargas de los clientes esperando la revisión de GyA." toolbar={<button className="ghost" onClick={onGoVideos}>Ir a Videos</button>}>
-      {pending.map(v=><div className="alert-item" key={v.id}><div><strong>{v.originalName}</strong><small>{v.clientName} · {asDate(v.uploadedAt)} · {v.note||'Sin nota'}</small></div><span className="urgency upcoming">Pendiente</span></div>)}
-      {!pending.length&&<p className="helper">¡Al día! No hay videos pendientes de revisión.</p>}
-    </Section>
-    <Section title="Próximas publicaciones" subtitle="Campañas ya autorizadas que se activarán automáticamente según su fecha." toolbar={<button className="ghost" onClick={onGoAgenda}>Abrir Agenda</button>}>
-      {next.map(s=><div className="alert-item" key={s.id}><div><strong>{s.video_name}</strong><small>{s.client_name} · Tótem {s.totem_code} · {asDate(s.starts_at)}</small></div><Urgency date={s.starts_at} status={s.status}/></div>)}
-      {!next.length&&<p className="helper">No hay campañas programadas por comenzar.</p>}
-    </Section>
-  </>;
 }
 function StoragePage({storage,onRefresh}){
   if(!storage)return <Section title="Almacenamiento" subtitle="Cargando los datos del servidor..."/>;
@@ -168,7 +190,20 @@ function TotemCheckboxes({totems,selected,onChange}){
     {!totems.length&&<p className="helper">Este cliente todavía no tiene tótems registrados. Crealo en la sección Tótems.</p>}
   </div>;
 }
+function rejectVideo(video,run,onDone){
+  const reason=prompt('Motivo del rechazo (lo verá el cliente):');
+  if(reason===null)return;
+  if(reason.trim().length<5){alert('Ingresá al menos 5 caracteres');return;}
+  if(!confirm('¿Rechazar el video y retirar todas sus publicaciones?'))return;
+  return run(async()=>{
+    await api('/videos/'+video.id+'/status',{method:'PATCH',body:JSON.stringify({status:'rejected',reason:reason.trim()})});
+    onDone?.();
+    return 'Video rechazado. El cliente verá el motivo.';
+  });
+}
+
 function AuthorizePanel({video,totems,busy,run,onClose}){
+  const [mode,setMode]=useState(video.requestedStartAt||video.status==='approved'?'schedule':'now');
   const [chosen,setChosen]=useState([]);
   const [start,setStart]=useState(localDateTime(video.requestedStartAt)||localDateTime(new Date(Date.now()+60000)));
   const [end,setEnd]=useState(localDateTime(video.requestedEndAt));
@@ -176,20 +211,42 @@ function AuthorizePanel({video,totems,busy,run,onClose}){
   async function submit(e){
     e.preventDefault();
     if(!chosen.length){alert('Seleccioná al menos un tótem');return;}
-    if(end&&new Date(end)<=new Date(start)){alert('La finalización debe ser posterior al inicio');return;}
-    if(!confirm(`¿Autorizar «${video.originalName}» para ${chosen.length} tótem(s)?\nSe activará automáticamente según la fecha elegida.`))return;
+    const startsAt=mode==='now'?new Date().toISOString():isoDateTime(start);
+    const endsAt=mode==='now'?undefined:isoDateTime(end);
+    if(endsAt&&new Date(endsAt)<=new Date(startsAt)){alert('La finalización debe ser posterior al inicio');return;}
+    if(!confirm(`¿${mode==='now'?'Publicar ahora':'Programar'} «${video.originalName}» en ${chosen.length} tótem(s)?`))return;
     await run(async()=>{
-      const r=await api('/videos/'+video.id+'/authorize-schedule',{method:'POST',body:JSON.stringify({totemIds:chosen,startsAt:isoDateTime(start),endsAt:isoDateTime(end)})});
-      onClose();return `Video autorizado y programado en ${r.count} tótem(s).`;
+      const r=await api('/videos/'+video.id+'/authorize-schedule',{
+        method:'POST',body:JSON.stringify({totemIds:chosen,startsAt,endsAt})
+      });
+      onClose();
+      return mode==='now'?`Publicación autorizada en ${r.count} tótem(s).`:`Video programado en ${r.count} tótem(s).`;
     });
   }
-  return <Section title="Autorizar y programar" subtitle="Un solo paso: revisar fecha, seleccionar tótems y autorizar. El servidor publicará automáticamente cuando corresponda." toolbar={<button className="ghost" onClick={onClose}>Cerrar</button>}>
-    <div className="note-preview"><strong>Video:</strong> {video.originalName} · <strong>Cliente:</strong> {video.clientName}<br/><strong>Nota:</strong> {video.note||'Sin observaciones'}</div>
-    {video.mediaValidation!=='compatible'&&<div className="warning-box">Este archivo no tiene verificación técnica de códecs. Antes de autorizar, reproducilo y revisá que sea compatible con la Raspberry. Recomendamos instalar FFprobe.</div>}
+  return <Section title="Revisar publicación" toolbar={<button type="button" className="ghost" onClick={onClose}>Cerrar</button>}>
+    <div className="note-preview"><strong>{video.originalName}</strong><br/>Cliente: {video.clientName}
+      {video.note&&<><br/>Nota: {video.note}</>}
+    </div>
+    <video className="admin-review-video" src={'/api/videos/'+video.id+'/file'}
+      controls playsInline preload="metadata" aria-label={'Vista previa de '+video.originalName}/>
+    <MediaBadge video={video}/>
     <form className="upload-form" onSubmit={submit}>
-      <Field label="Tótems donde se reproducirá"><TotemCheckboxes totems={eligible} selected={chosen} onChange={setChosen}/></Field>
-      <div className="form-grid"><DateTimeField label="Inicio autorizado" value={start} onChange={setStart} required/><DateTimeField label="Finalización (opcional)" value={end} onChange={setEnd} min={start} disabled={!start}/></div>
-      <div className="form-actions"><span className="helper">Si la fecha solicitada ya pasó y la campaña no terminó, comenzará al autorizarla. El video nunca se activa sin este permiso.</span><button className="primary" disabled={busy||!chosen.length||!start}>Confirmar autorización y programación</button></div>
+      <Field label="Tótems"><TotemCheckboxes totems={eligible} selected={chosen} onChange={setChosen}/></Field>
+      <fieldset className="publication-mode" disabled={busy}>
+        <legend>Publicación</legend>
+        <label><input type="radio" name="publishMode" checked={mode==='now'} onChange={()=>setMode('now')}/> Publicar ahora</label>
+        <label><input type="radio" name="publishMode" checked={mode==='schedule'} onChange={()=>setMode('schedule')}/> Programar</label>
+      </fieldset>
+      {mode==='schedule'&&<div className="form-grid">
+        <DateTimeField label="Inicio autorizado" value={start} onChange={setStart} required/>
+        <DateTimeField label="Finalización (opcional)" value={end} onChange={setEnd} min={start} disabled={!start}/>
+      </div>}
+      <div className="form-actions admin-review-actions">
+        <button type="button" className="danger-text" disabled={busy} onClick={()=>rejectVideo(video,run,onClose)}>Rechazar</button>
+        <button className="primary" disabled={busy||!chosen.length||(mode==='schedule'&&!start)}>
+          {mode==='now'?(video.status==='pending'?'Aprobar y publicar':'Publicar ahora'):(video.status==='pending'?'Aprobar y programar':'Programar')}
+        </button>
+      </div>
     </form>
   </Section>;
 }
@@ -208,13 +265,14 @@ function MediaBadge({video}){
   const valid=video.mediaValidation==='compatible';
   return <span className={'media-badge '+(valid?'is-valid':'is-unknown')}>{valid?`Compatible · ${video.width}×${video.height}`:'Sin verificar códecs'}</span>;
 }
-function VideosPage({admin,clients,totems,videos,busy,run}){
+function VideosPage({admin,clients,totems,videos,busy,run,programming}){
   const [file,setFile]=useState(null),[clientId,setClientId]=useState('');
   const [note,setNote]=useState(''),[startsAt,setStartsAt]=useState(''),[endsAt,setEndsAt]=useState('');
   const [approvalMode,setApprovalMode]=useState('pending'),[directTotems,setDirectTotems]=useState([]),[authorizeId,setAuthorizeId]=useState(null),[previewId,setPreviewId]=useState(null);
   const [uploadError,setUploadError]=useState(null),[uploadRules,setUploadRules]=useState(null);
   const uploadErrorRef=useRef(null);
-  const [tab,setTab]=useState('publish');
+  const [tab,setTab]=useState(admin?'pending':'publish');
+  const [clientSearch,setClientSearch]=useState('');
   useEffect(()=>{let active=true;api('/videos/upload-rules').then(r=>{if(active)setUploadRules(r)}).catch(()=>{});return ()=>{active=false}},[]);
   useEffect(()=>{if(uploadError&&uploadErrorRef.current){uploadErrorRef.current.focus();uploadErrorRef.current.scrollIntoView({behavior:'smooth',block:'center'})}},[uploadError]);
   const currentClientTotems=totems.filter(t=>t.client_id===clientId);
@@ -242,19 +300,27 @@ function VideosPage({admin,clients,totems,videos,busy,run}){
       if(endsAt)data.append('requestedEndAt',isoDateTime(endsAt));
       await api('/videos',{method:'POST',body:data});
       setFile(null);setNote('');setStartsAt('');setEndsAt('');setDirectTotems([]);form.reset();
-      if(!admin)setTab('history');
+      setTab(admin?(approvalMode==='publish'?'library':'pending'):'history');
       return admin&&approvalMode==='publish'?`Video aprobado y ${startsAt?'programado':'publicado'} en ${directTotems.length} tótem(s).`:'Video recibido. GyA deberá autorizar y asignar los tótems.';
     },{onError:error=>setUploadError(explainUploadError(error,uploadRules?.maxUploadMb))});
   }
-  const pending=videos.filter(v=>v.status==='pending').length;
+  const pendingVideos=videos.filter(v=>v.status==='pending');
+  const clientQuery=normalizeSearchText(clientSearch);
+  const libraryVideos=admin&&clientQuery
+    ?videos.filter(video=>normalizeSearchText(video.clientName).includes(clientQuery))
+    :videos;
+  const pending=pendingVideos.length;
   return <>
     {previewVideo&&<VideoPreview video={previewVideo} onClose={()=>setPreviewId(null)}/>}
+    {admin&&<PanelTabs label="Publicaciones" options={[
+      ['publish','Subir video'],['pending',`Pendientes (${pending})`],['library','Biblioteca'],['programming','Programación']
+    ]} selected={tab} onSelect={next=>{setTab(next);setAuthorizeId(null)}}/>}
     {!admin&&<div className="publication-tabs" aria-label="Publicaciones">
       <button type="button" aria-pressed={tab==='publish'} onClick={()=>setTab('publish')}>Publicar</button>
       <button type="button" aria-pressed={tab==='history'} onClick={()=>setTab('history')}>Historial</button>
     </div>}
-    <div className="stats"><Stat label="Total de videos" value={videos.length}/><Stat label="Pendientes de revisión" value={pending}/><Stat label="Aprobados" value={videos.filter(v=>v.status==='approved').length}/></div>
-    <div hidden={!admin&&tab!=='publish'}>
+    {!admin&&<div className="stats"><Stat label="Total de videos" value={videos.length}/><Stat label="Pendientes de revisión" value={pending}/><Stat label="Aprobados" value={videos.filter(v=>v.status==='approved').length}/></div>}
+    <div hidden={tab!=='publish'}>
     <Section title={admin?'Subir un video':'Publicar un video'} subtitle={admin?'Carga por cuenta de cualquier cliente. Podés dejarlo pendiente o autorizarlo y publicarlo directamente.':'Cargá tu MP4, una nota y la fecha solicitada. GyA revisará y autorizará la campaña.'}>
       <VideoUploadGuide rules={uploadRules}/>
       <form onSubmit={upload} className="upload-form">
@@ -276,11 +342,29 @@ function VideosPage({admin,clients,totems,videos,busy,run}){
       <div className="helper">El archivo conserva su nombre original en el panel. El servidor verifica códec, resolución y FPS cuando FFprobe está disponible. Si no puede inspeccionarlo, figurará «Sin verificar» hasta que el administrador lo revise.</div>
     </Section>
     </div>
-    {admin&&authorization&&<AuthorizePanel key={authorization.id} video={authorization} totems={totems} busy={busy} run={run} onClose={()=>setAuthorizeId(null)}/>}
-    {(admin||tab==='history')&&<Section title={admin?'Biblioteca de todos los clientes':'Historial'} subtitle={admin?'Los videos de los clientes requieren autorización de GyA.':'Consultá el estado de los videos que enviaste.'}>
+    {admin&&tab==='programming'&&programming}
+    {admin&&tab==='pending'&&<div className={'admin-review-grid'+(authorization?' has-selection':'')}>
+      <Section title="Pendientes de aprobación">
+        {pendingVideos.length?<div className="table-wrapper"><table>
+          <thead><tr><th>Video</th><th>Cliente</th><th>Acciones</th></tr></thead>
+          <tbody>{pendingVideos.map(video=><tr key={video.id} className={authorization?.id===video.id?'selected-review':''}>
+            <td className="filename">{video.originalName}<div className="secondary-small">{asDate(video.uploadedAt)}</div></td>
+            <td>{video.clientName}</td>
+            <td><button type="button" className="authorize-action" aria-pressed={authorization?.id===video.id}
+              disabled={busy} onClick={()=>setAuthorizeId(video.id)}>Revisar</button></td>
+          </tr>)}</tbody>
+        </table></div>:<p className="helper">No hay videos pendientes de revisión.</p>}
+      </Section>
+      {authorization&&<AuthorizePanel key={authorization.id} video={authorization} totems={totems} busy={busy} run={run} onClose={()=>setAuthorizeId(null)}/>}
+    </div>}
+    {admin&&tab==='library'&&authorization&&<AuthorizePanel key={authorization.id} video={authorization} totems={totems} busy={busy} run={run} onClose={()=>setAuthorizeId(null)}/>}
+    {(tab==='library'||tab==='history')&&<Section title={admin?'Biblioteca de todos los clientes':'Historial'} subtitle={admin?'Los videos de los clientes requieren autorización de GyA.':'Consultá el estado de los videos que enviaste.'}>
+      {admin&&<SearchFilter label="Buscar por cliente" placeholder="Nombre del cliente"
+        value={clientSearch} onChange={setClientSearch} resultText={clientQuery
+          ?`${libraryVideos.length} ${libraryVideos.length===1?'video encontrado':'videos encontrados'}`:''}/>}
       <div className="table-wrapper"><table><thead><tr><th>Archivo</th>{admin&&<th>Cliente</th>}<th>Nota</th><th>Publicación solicitada</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
-        {videos.map(v=><tr key={v.id}><td className="filename" title={v.originalName}>{v.originalName}<div className="secondary-small">{readableBytes(v.size)} · {asDate(v.uploadedAt)}</div><MediaBadge video={v}/>{v.status==='rejected'&&v.rejectionReason&&<div className="rejection-reason"><strong>Motivo:</strong> {v.rejectionReason}</div>}</td>{admin&&<td>{v.clientName}</td>}<td className="note-col" title={v.note||''}>{v.note||'—'}</td><td>{asDate(v.requestedStartAt)}{v.requestedEndAt&&<div className="secondary-small">Hasta: {asDate(v.requestedEndAt)}</div>}</td><td><span className={'pill '+v.status}>{statuses[v.status]}</span></td><td className="row-actions"><button className="preview-action" type="button" onClick={()=>setPreviewId(v.id)}>▶ Vista previa</button>{admin&&v.mediaValidation!=='compatible'&&<button className="preview-action" type="button" disabled={busy} onClick={()=>run(async()=>{const r=await api('/videos/'+v.id+'/verify',{method:'POST'});return r.mediaValidation==='compatible'?'Archivo compatible con Raspberry Pi 3.':'Sin FFprobe: archivo todavía no verificado.'})}>Verificar MP4</button>}{admin&&v.status!=='rejected'&&<button disabled={busy} className="authorize-action" onClick={()=>setAuthorizeId(v.id)}>{v.status==='pending'?'Autorizar y programar':'Programar en tótems'}</button>}{admin&&v.status!=='rejected'&&<button className="danger-text" disabled={busy} onClick={()=>{const reason=prompt('Motivo del rechazo (lo verá el cliente):');if(reason===null)return;if(reason.trim().length<5){alert('Ingresá al menos 5 caracteres');return;}if(!confirm('¿Rechazar el video y retirar todas sus publicaciones?'))return;run(async()=>{await api('/videos/'+v.id+'/status',{method:'PATCH',body:JSON.stringify({status:'rejected',reason:reason.trim()})});return 'Video rechazado. El cliente verá el motivo.'})}}>Rechazar</button>}{admin&&v.hasPublications&&<button className="unpublish-action" disabled={busy} onClick={()=>{if(!confirm('¿Despublicar «'+v.originalName+'»? Se retirará de las listas y se cancelarán sus campañas, pero se conservará el MP4.'))return;run(async()=>{const r=await api('/videos/'+v.id+'/unpublish',{method:'POST'});return 'Video despublicado en '+r.removedFrom+' tótem(s).'})}}>Despublicar</button>}<button className="delete-action" disabled={busy} onClick={()=>{if(!confirm('¿ELIMINAR DEFINITIVAMENTE «'+v.originalName+'»? Se eliminará el MP4 y se retirará de las listas y de la programación.'))return;run(async()=>{const r=await api('/videos/'+v.id,{method:'DELETE',body:JSON.stringify({confirm:true})});return r.cleanupPending?'Video eliminado del sistema; borrado físico pendiente de reintento.':'Video eliminado definitivamente.'})}}>Eliminar</button></td></tr>)}
-        {!videos.length&&<tr><td colSpan={admin?6:5} className="empty">Todavía no hay videos cargados.</td></tr>}
+        {libraryVideos.map(v=><tr key={v.id}><td className="filename" title={v.originalName}>{v.originalName}<div className="secondary-small">{readableBytes(v.size)} · {asDate(v.uploadedAt)}</div><MediaBadge video={v}/>{v.status==='rejected'&&v.rejectionReason&&<div className="rejection-reason"><strong>Motivo:</strong> {v.rejectionReason}</div>}</td>{admin&&<td>{v.clientName}</td>}<td className="note-col" title={v.note||''}>{v.note||'—'}</td><td>{asDate(v.requestedStartAt)}{v.requestedEndAt&&<div className="secondary-small">Hasta: {asDate(v.requestedEndAt)}</div>}</td><td><span className={'pill '+v.status}>{statuses[v.status]}</span></td><td className="row-actions"><button className="preview-action" type="button" onClick={()=>setPreviewId(v.id)}>▶ Vista previa</button>{admin&&v.mediaValidation!=='compatible'&&<button className="preview-action" type="button" disabled={busy} onClick={()=>run(async()=>{const r=await api('/videos/'+v.id+'/verify',{method:'POST'});return r.mediaValidation==='compatible'?'Archivo compatible con Raspberry Pi 3.':'Sin FFprobe: archivo todavía no verificado.'})}>Verificar MP4</button>}{admin&&v.status!=='rejected'&&<button disabled={busy} className="authorize-action" onClick={()=>setAuthorizeId(v.id)}>{v.status==='pending'?'Autorizar y programar':'Programar en tótems'}</button>}{admin&&v.status!=='rejected'&&<button className="danger-text" disabled={busy} onClick={()=>rejectVideo(v,run)}>Rechazar</button>}{admin&&v.hasPublications&&<button className="unpublish-action" disabled={busy} onClick={()=>{if(!confirm('¿Despublicar «'+v.originalName+'»? Se retirará de las listas y se cancelarán sus campañas, pero se conservará el MP4.'))return;run(async()=>{const r=await api('/videos/'+v.id+'/unpublish',{method:'POST'});return 'Video despublicado en '+r.removedFrom+' tótem(s).'})}}>Despublicar</button>}<button className="delete-action" disabled={busy} onClick={()=>{if(!confirm('¿ELIMINAR DEFINITIVAMENTE «'+v.originalName+'»? Se eliminará el MP4 y se retirará de las listas y de la programación.'))return;run(async()=>{const r=await api('/videos/'+v.id,{method:'DELETE',body:JSON.stringify({confirm:true})});return r.cleanupPending?'Video eliminado del sistema; borrado físico pendiente de reintento.':'Video eliminado definitivamente.'})}}>Eliminar</button></td></tr>)}
+        {!libraryVideos.length&&<tr><td colSpan={admin?6:5} className="empty">{clientQuery?'No hay videos de clientes que coincidan con la búsqueda.':'Todavía no hay videos cargados.'}</td></tr>}
       </tbody></table></div>
     </Section>}
   </>;
@@ -397,26 +481,40 @@ function UsersPage({users,me,busy,run,onSelfReset,onlyAdmins=false}){
     </Section>}
   </>;
 }
-function TotemsPage({admin,clients,totems,busy,run}){
+function TotemsPage({admin,clients,totems,busy,run,onPlaylist}){
   const[code,setCode]=useState(''),[client,setClient]=useState('');
   const[selected,setSelected]=useState(''),[details,setDetails]=useState(null),[detailError,setDetailError]=useState(''),[loading,setLoading]=useState(false),[pairToken,setPairToken]=useState('');
+  const [search,setSearch]=useState('');
+  const query=normalizeSearchText(search);
+  const visibleTotems=admin&&query?totems.filter(totem=>
+    normalizeSearchText(totem.code).includes(query)||normalizeSearchText(totem.client_name).includes(query)
+  ):totems;
   const active=totems.find(t=>t.id===selected);
+  const detailRequest=useRef(0);
   async function load(id=selected){
-    if(!id){setDetails(null);return;}
-    setLoading(true);setDetailError('');
-    try{const r=await api('/admin/totems/'+id+'/files');setDetails(r.totem);}
-    catch(e){setDetailError(e.message)}finally{setLoading(false)}
+    if(!id)return;
+    const request=++detailRequest.current;
+    setLoading(true);
+    setDetailError('');
+    try{
+      const r=await api('/admin/totems/'+id+'/files');
+      if(request===detailRequest.current)setDetails(r.totem);
+    }catch(e){
+      if(request===detailRequest.current)setDetailError(e.message);
+    }finally{
+      if(request===detailRequest.current)setLoading(false);
+    }
   }
-  const requestCleanup=()=>run(async()=>{
-    if(!confirm('¿Solicitar limpieza del tótem? Solo se borrarán videos administrados por TVM que ya no estén en sus publicaciones.'))return 'Limpieza cancelada';
-    await api('/admin/totems/'+selected+'/cleanup',{method:'POST',body:JSON.stringify({})});
-    await load();return 'Limpieza solicitada. Se ejecutará cuando el tótem se conecte.';
-  });
-  const removeVideo=f=>run(async()=>{
-    if(!confirm(`¿Retirar «${f.name}» solamente del tótem ${active?.code}? Se cancelarán sus publicaciones en este dispositivo y se borrará en la siguiente sincronización. No se eliminará del VPS ni de otros tótems.`))return 'Sin cambios';
-    await api('/admin/totems/'+selected+'/videos/'+f.videoId+'/remove',{method:'POST',body:JSON.stringify({confirm:true})});
-    await load();return 'Retiro solicitado. Esperando la próxima sincronización del tótem.';
-  });
+  function removeVideo(file){
+    if(!confirm(`¿Borrar «${file.name}» de ${active.code}? Se retirará de su lista y se cancelarán sus campañas en este equipo. El video seguirá disponible en la biblioteca y en los demás tótems.`))return;
+    run(async()=>{
+      await api('/admin/totems/'+selected+'/videos/'+file.videoId+'/remove',{
+        method:'POST',body:JSON.stringify({confirm:true})
+      });
+      await load();
+      return 'Borrado solicitado. El tótem lo aplicará cuando vuelva a sincronizar.';
+    });
+  }
   const createToken=()=>run(async()=>{
     if(!confirm(`¿Vincular ${active?.code}? Si ya estaba vinculado, su clave anterior dejará de funcionar.`))return 'Sin cambios';
     const r=await api('/admin/totems/'+selected+'/pair',{method:'POST',body:JSON.stringify({confirm:true})});
@@ -429,36 +527,69 @@ function TotemsPage({admin,clients,totems,busy,run}){
   return <>
     {admin&&<Section title="Registrar tótem" subtitle="Asigná el dispositivo a un cliente. Después vinculás su agente para recibir datos reales."><form className="inline-form" onSubmit={e=>{e.preventDefault();run(async()=>{await api('/totems',{method:'POST',body:JSON.stringify({code,clientId:client})});setCode('');return 'Tótem registrado'})}}><Field label="Identificador"><input placeholder="TOTEM-001" value={code} onChange={e=>setCode(e.target.value.toUpperCase())} required pattern="[A-Z0-9-]{3,32}"/></Field><Field label="Cliente"><select required value={client} onChange={e=>setClient(e.target.value)}><option value="">Seleccionar</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><button className="primary" disabled={busy}>Registrar tótem</button></form></Section>}
     <Section title={admin?'Almacenamiento de los tótems':'Mis tótems'} subtitle="Capacidad real informada por cada Raspberry conectada; los datos antiguos se identifican como desconectados.">
-      <div className="table-wrapper"><table><thead><tr><th>Identificador</th>{admin&&<th>Cliente</th>}<th>Conexión</th><th>Libre</th><th>Uso</th><th>Último contacto</th>{admin&&<th>Gestionar</th>}</tr></thead><tbody>{totems.map(t=>{
+      {admin&&<SearchFilter label="Buscar tótems" placeholder="Identificador o nombre del cliente"
+        value={search} onChange={setSearch} resultText={query
+          ?`${visibleTotems.length} ${visibleTotems.length===1?'tótem encontrado':'tótems encontrados'}`:''}/>}
+      <div className="table-wrapper"><table><thead><tr><th>Identificador</th>{admin&&<th>Cliente</th>}<th>Conexión</th><th>Libre</th><th>Uso</th><th>Último contacto</th>{admin&&<th>Gestionar</th>}</tr></thead><tbody>{visibleTotems.map(t=>{
         const online=t.last_seen && Date.now()-new Date(t.last_seen).getTime()<180000;
         const hasDisk=t.device_disk_total!=null && t.device_disk_free!=null;
-        return <tr key={t.id}><td><strong>{t.code}</strong></td>{admin&&<td>{t.client_name}</td>}<td><span className={'pill '+(online?'approved':'pending')}>{online?'Online':'Sin conexión'}</span></td><td>{hasDisk?readableBytes(Number(t.device_disk_free)):'Sin datos'}</td><td>{hasDisk?`${Math.round(100*(Number(t.device_disk_total)-Number(t.device_disk_free))/Math.max(1,Number(t.device_disk_total)))}%`:'—'}</td><td>{asDate(t.last_seen)}</td>{admin&&<td><button className="authorize-action" onClick={()=>{setSelected(t.id);setPairToken('');setDetails(null);load(t.id)}}>Administrar</button></td>}</tr>
-      })}{!totems.length&&<tr><td colSpan={admin?7:5} className="empty">No hay tótems registrados.</td></tr>}</tbody></table></div>
+        return <tr key={t.id}><td><strong>{t.code}</strong></td>{admin&&<td>{t.client_name}</td>}<td><span className={'pill '+(online?'approved':'pending')}>{online?'Online':'Sin conexión'}</span></td><td>{hasDisk?readableBytes(Number(t.device_disk_free)):'Sin datos'}</td><td>{hasDisk?`${Math.round(100*(Number(t.device_disk_total)-Number(t.device_disk_free))/Math.max(1,Number(t.device_disk_total)))}%`:'—'}</td><td>{asDate(t.last_seen)}</td>{admin&&<td><button className="authorize-action" disabled={busy} onClick={()=>{setSelected(t.id);setPairToken('');setDetails(null);load(t.id)}}>Administrar</button> <button className="ghost" onClick={()=>onPlaylist(t.id)}>Editar lista</button></td>}</tr>
+      })}{!visibleTotems.length&&<tr><td colSpan={admin?7:5} className="empty">{admin&&query?'No hay tótems que coincidan con la búsqueda.':'No hay tótems registrados.'}</td></tr>}</tbody></table></div>
     </Section>
-    {admin&&active&&<Section title={'Administrar '+active.code} subtitle="El servidor no borra directamente archivos de una Raspberry: deja la orden pendiente hasta que el dispositivo confirme." toolbar={<button className="ghost" onClick={()=>{setSelected('');setDetails(null);setPairToken('')}}>Cerrar</button>}>
+    {admin&&active&&<Section title={'Administrar '+active.code}  toolbar={<button className="ghost" disabled={busy} onClick={()=>{detailRequest.current++;setSelected('');setDetails(null);setPairToken('')}}>Cerrar</button>}>
       {detailError&&<div className="alert">{detailError}</div>}
-      <div className="totem-toolbar"><button className="ghost" disabled={loading||busy} onClick={()=>load()}>{loading?'Consultando...':'Actualizar información'}</button><button className="ghost" disabled={busy} onClick={createToken}>Vincular / renovar clave</button><button className="ghost" disabled={busy} onClick={requestCleanup}>Liberar espacio</button></div>
+      <div className="totem-toolbar"><button className="ghost" disabled={loading||busy} onClick={()=>load()}>{loading?'Consultando...':'Actualizar información'}</button><button className="ghost" disabled={busy} onClick={createToken}>Vincular / renovar clave</button></div>
       {pairToken&&<div className="token-card"><strong>Clave del agente: se muestra una sola vez</strong><p>Copiala a <code>tvm-agent/config.json</code> de la Raspberry. No la publiques en GitHub, ni la compartas con clientes.</p><code className="token-value">{pairToken}</code><div><button type="button" className="ghost" onClick={()=>navigator.clipboard?.writeText(pairToken)}>Copiar clave</button><button type="button" className="ghost" onClick={()=>setPairToken('')}>Ocultar</button></div></div>}
       {details&&<>
         <div className="stats"><Stat label="Capacidad SD/disco" value={disk!=null?readableBytes(disk):'Sin datos'}/><Stat label="Espacio disponible" value={free!=null?readableBytes(free):'Sin datos'}/><Stat label="Videos TVM en tótem" value={readableBytes(Number(details.device_video_bytes)||0)}/></div>
         {disk!=null&&<div className="totem-disk"><div className="totem-disk-bar"><span style={{width:usage+'%'}}/></div><p className="helper">Uso total: {usage}% · {readableBytes(free)} libre. {free<2*1024**3?'⚠ Queda poco espacio.':''}</p></div>}
-        <p className="helper">Estado: {details.connectionStatus==='online'?'Conectado':'Sin conexión'} · Último informe: {asDate(details.device_reported_at)} · Playlist: v{details.playlist_version} · Confirmada: v{details.device_synced_version??'—'} · Limpieza: {Number(details.device_cleanup_generation)>Number(details.device_cleanup_ack)?'Pendiente':'Al día'}</p>
+        <p className="helper">Estado: {details.connectionStatus==='online'?'Conectado':'Sin conexión'} · Último informe: {asDate(details.device_reported_at)} · Playlist: v{details.playlist_version} · Confirmada: v{details.device_synced_version??'—'}</p>
         {details.device_last_error&&<div className="warning-box">Último error del tótem: {details.device_last_error}</div>}
-        <h3>Archivos descargados en este dispositivo</h3>
-        <div className="table-wrapper"><table><thead><tr><th>Video</th><th>Espacio</th><th>Acción</th></tr></thead><tbody>{(details.files||[]).map(f=><tr key={f.videoId}><td>{f.name}</td><td>{readableBytes(Number(f.bytes))}</td><td><button type="button" className="delete-action" disabled={busy} onClick={()=>removeVideo(f)}>Eliminar del tótem</button></td></tr>)}{!details.files?.length&&<tr><td colSpan={3} className="empty">No hay archivos informados. Para verlos, primero vinculá y ejecutá el agente.</td></tr>}</tbody></table></div>
-        <p className="helper">Eliminar del tótem retira ese video de sus publicaciones, conserva el MP4 en el VPS y no afecta otros dispositivos. La limpieza borra exclusivamente archivos TVM sin uso.</p>
+        <h3>Videos descargados en este tótem</h3>
+        <p className="helper">Elegí el video que querés borrar de este equipo. El tótem aplica el cambio al sincronizar.</p>
+        {Number(details.device_cleanup_generation)>Number(details.device_cleanup_ack)&&
+          <p className="helper" role="status">Hay borrados pendientes de confirmación. Después de que el tótem sincronice, tocá Actualizar información.</p>}
+        <div className="table-wrapper">
+          <table>
+            <thead><tr><th>Video</th><th>Tamaño</th><th>Acciones</th></tr></thead>
+            <tbody>
+              {(details.files||[]).map(file=><tr key={file.videoId}>
+                <td className="filename">{file.name}</td>
+                <td>{readableBytes(Number(file.bytes))}</td>
+                <td><button type="button" className="delete-action" disabled={busy||loading}
+                  aria-label={`Borrar ${file.name} de ${active.code}`}
+                  onClick={()=>removeVideo(file)}>Borrar del tótem</button></td>
+              </tr>)}
+              {!details.files?.length&&<tr><td colSpan={3} className="empty">
+                {details.device_reported_at?'El tótem no informó videos descargados.':'El tótem todavía no envió su primer informe de archivos.'}
+              </td></tr>}
+            </tbody>
+          </table>
+        </div>
       </>}
     </Section>}
   </>;
 }
 function PlaylistsPage({videos,schedules,totems,selected,setSelected,busy,run}){
-  const[items,setItems]=useState([]),[version,setVersion]=useState(''),[loading,setLoading]=useState(false),[err,setErr]=useState('');
+  const[items,setItems]=useState([]),[version,setVersion]=useState(''),[loadedTotem,setLoadedTotem]=useState(''),[err,setErr]=useState('');
+  const loading=Boolean(selected&&loadedTotem!==selected&&!err);
   const totem=totems.find(x=>x.id===selected);
   const scheduledIds=new Set(schedules.filter(s=>s.totem_id===selected&&['scheduled','active'].includes(s.status)).map(s=>s.video_id));
   const approved=videos.filter(v=>v.status==='approved'&&v.clientId===totem?.client_id&&!scheduledIds.has(v.id));
-  useEffect(()=>{if(!selected){setItems([]);setVersion('');return;}setLoading(true);api('/totems/'+selected+'/playlist').then(r=>{setItems(r.items.map(v=>v.id));setVersion(r.totem.playlist_version)}).catch(e=>setErr(e.message)).finally(()=>setLoading(false));},[selected]);
+  useEffect(()=>{
+    setLoadedTotem('');
+    if(!selected)return;
+    let active=true;
+    api('/totems/'+selected+'/playlist').then(r=>{
+      if(!active)return;
+      setItems(r.items.map(v=>v.id));
+      setVersion(r.totem.playlist_version);
+      setLoadedTotem(selected);
+    }).catch(e=>{if(active)setErr(e.message)});
+    return ()=>{active=false};
+  },[selected]);
   function move(i,dir){const n=i+dir;if(n<0||n>=items.length)return;setItems(prev=>{const a=[...prev];[a[i],a[n]]=[a[n],a[i]];return a})}
-  return <Section title="Publicaciones por tótem" subtitle="Lista MANUAL. Las campañas con fecha se administran en Agenda y se activan automáticamente. No agregues manualmente un video programado."><Field label="Seleccioná un tótem"><select value={selected} onChange={e=>{setErr('');setSelected(e.target.value)}}><option value="">Elegir tótem</option>{totems.map(t=><option key={t.id} value={t.id}>{t.code} — {t.client_name}</option>)}</select></Field>{err&&<div className="alert">{err}</div>}{totem&&<><p className="helper">Versión publicada: v{version} · {loading?'Cargando…':'Modificá la lista y presioná Publicar cambios.'}</p><div className="playlist-editor"><div><h3>Videos aprobados</h3>{approved.filter(v=>!items.includes(v.id)).map(v=><div className="playlist-item" key={v.id}><span title={v.originalName}>{v.originalName}</span><button onClick={()=>setItems(x=>[...x,v.id])}>+ Agregar</button></div>)}{approved.every(v=>items.includes(v.id))&&<p className="helper">No quedan videos aprobados sin agregar.</p>}</div><div><h3>Lista del tótem ({items.length})</h3>{items.map((id,i)=>{const v=approved.find(x=>x.id===id)||videos.find(x=>x.id===id);return <div className="playlist-item" key={id}><span>{i+1}. {v?.originalName||id}</span><div className="playlist-buttons"><button onClick={()=>move(i,-1)} disabled={!i}>↑</button><button onClick={()=>move(i,1)} disabled={i===items.length-1}>↓</button><button onClick={()=>setItems(x=>x.filter(item=>item!==id))} className="danger-text">Quitar</button></div></div>})}{!items.length&&<p className="helper">Lista vacía.</p>}</div></div><button className="primary" disabled={busy||loading} onClick={()=>run(async()=>{if(!confirm('¿Publicar esta lista para '+totem.code+'?'))return 'Sin cambios';const r=await api('/totems/'+selected+'/playlist',{method:'PUT',body:JSON.stringify({videoIds:items})});setVersion(r.version);return 'Lista publicada como v'+r.version})}>Publicar cambios</button><p className="helper">Las campañas de Agenda se suman automáticamente cuando están activas. La sincronización con Raspberry sigue pendiente.</p></>}</Section>
+  return <Section title="Lista de reproducción del tótem" subtitle="Ordená los videos manuales. Las campañas con horario se gestionan en Publicaciones → Programación."><Field label="Seleccioná un tótem"><select value={selected} onChange={e=>{setErr('');setSelected(e.target.value)}}><option value="">Elegir tótem</option>{totems.map(t=><option key={t.id} value={t.id}>{t.code} — {t.client_name}</option>)}</select></Field>{err&&<div className="alert">{err}</div>}{loading&&<p className="helper">Cargando lista…</p>}{totem&&loadedTotem===selected&&<><p className="helper">Versión publicada: v{version} · Modificá la lista y presioná Publicar cambios.</p><div className="playlist-editor"><div><h3>Videos aprobados</h3>{approved.filter(v=>!items.includes(v.id)).map(v=><div className="playlist-item" key={v.id}><span title={v.originalName}>{v.originalName}</span><button onClick={()=>setItems(x=>[...x,v.id])}>+ Agregar</button></div>)}{approved.every(v=>items.includes(v.id))&&<p className="helper">No quedan videos aprobados sin agregar.</p>}</div><div><h3>Lista del tótem ({items.length})</h3>{items.map((id,i)=>{const v=approved.find(x=>x.id===id)||videos.find(x=>x.id===id);return <div className="playlist-item" key={id}><span>{i+1}. {v?.originalName||id}</span><div className="playlist-buttons"><button onClick={()=>move(i,-1)} disabled={!i}>↑</button><button onClick={()=>move(i,1)} disabled={i===items.length-1}>↓</button><button onClick={()=>setItems(x=>x.filter(item=>item!==id))} className="danger-text">Quitar</button></div></div>})}{!items.length&&<p className="helper">Lista vacía.</p>}</div></div><button className="primary" disabled={busy} onClick={()=>run(async()=>{if(!confirm('¿Publicar esta lista para '+totem.code+'?'))return 'Sin cambios';const r=await api('/totems/'+selected+'/playlist',{method:'PUT',body:JSON.stringify({videoIds:items})});setVersion(r.version);return 'Lista publicada como v'+r.version})}>Publicar cambios</button><p className="helper">Las campañas programadas se suman automáticamente mientras están activas.</p></>}</Section>
 }
 function AgendaPage({videos,totems,schedules,clients,busy,run}){
   const[clientFilter,setClientFilter]=useState(''),[videoId,setVideoId]=useState(''),[totemId,setTotemId]=useState('');
@@ -491,7 +622,7 @@ function AgendaPage({videos,totems,schedules,clients,busy,run}){
         {!filteredVideos.length&&<tr><td colSpan="6" className="empty">No hay videos para mostrar.</td></tr>}
       </tbody></table></div>
     </Section>
-    <Section title="Añadir otra programación" subtitle="Esta opción permite agregar nuevas campañas a videos ya autorizados. Para los pendientes, usá Autorizar y programar desde Videos.">
+    <Section title="Añadir otra programación" subtitle="Esta opción permite agregar nuevas campañas a videos ya autorizados. Las cargas pendientes se revisan en la pestaña Pendientes.">
       <form onSubmit={schedule} className="upload-form">
         <div className="form-grid"><Field label="Video aprobado"><select required value={videoId} onChange={e=>{const v=videos.find(x=>x.id===e.target.value);setVideoId(e.target.value);setTotemId('');setStartsAt(localDateTime(v?.requestedStartAt));setEndsAt(localDateTime(v?.requestedEndAt));}}><option value="">Seleccionar video aprobado</option>{approved.map(v=><option key={v.id} value={v.id}>{v.clientName} — {v.originalName}</option>)}</select></Field><Field label="Tótem de ese cliente"><select required value={totemId} onChange={e=>setTotemId(e.target.value)} disabled={!videoId}><option value="">Seleccionar tótem</option>{targetTotems.map(t=><option key={t.id} value={t.id}>{t.code} — {t.client_name}</option>)}</select></Field></div>
         {selectedVideo?.note&&<div className="note-preview"><strong>Nota del cliente:</strong> {selectedVideo.note}</div>}
@@ -499,13 +630,13 @@ function AgendaPage({videos,totems,schedules,clients,busy,run}){
         <div className="form-actions"><span className="helper">Si la fecha ya pasó, la campaña comenzará al guardarla, siempre que no haya terminado. El servidor procesa las activaciones cada 10 segundos.</span><button className="primary" disabled={busy||!videoId||!totemId||!startsAt}>Autorizar y programar</button></div>
       </form>
     </Section>
-    <Section title="Publicaciones asignadas" subtitle="Cada campaña se activa sola al llegar su fecha, o se retira al terminar. Podés cancelarla manualmente.">
+    <Section title="Campañas por tótem" subtitle="Consultá en qué tótem se asignó cada campaña, sus fechas y su estado. Desde acá podés cancelar una campaña en ese equipo.">
       <div className="table-wrapper"><table><thead><tr><th>Cliente / tótem</th><th>Video</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
         {filteredSchedules.map(s=><tr key={s.id}><td><strong>{s.client_name}</strong><div className="secondary-small">{s.totem_code}</div></td><td className="filename">{s.video_name}</td><td>{asDate(s.starts_at)}</td><td>{asDate(s.ends_at)}</td><td><Urgency date={s.starts_at} status={s.status}/></td><td className="row-actions">{['scheduled','active'].includes(s.status)&&<button className="danger-text" disabled={busy} onClick={()=>{if(!confirm('¿Cancelar esta publicación programada?'))return;run(async()=>{await api('/schedules/'+s.id+'/cancel',{method:'PATCH'});return 'Programación cancelada'})}}>Cancelar</button>}</td></tr>)}
         {!filteredSchedules.length&&<tr><td colSpan="6" className="empty">No hay campañas programadas.</td></tr>}
       </tbody></table></div>
     </Section>
-    <Section title="Ver reproducción efectiva" subtitle="Lista manual más campañas automáticas activas. Se omiten los videos duplicados.">
+    <Section title="Lista vigente del tótem" subtitle="Muestra los videos que deben reproducirse en el equipo: la lista manual y las campañas activas. Consultá el estado de conexión en Tótems.">
       <div className="inline-form"><Field label="Elegí el tótem"><select value={previewTotem} onChange={e=>{setPreviewTotem(e.target.value);preview(e.target.value);}}><option value="">Seleccionar tótem</option>{totems.map(t=><option key={t.id} value={t.id}>{t.code} — {t.client_name}</option>)}</select></Field><button className="ghost" disabled={!previewTotem} onClick={()=>preview(previewTotem)}>Actualizar lista</button></div>
       {previewError&&<p className="alert">{previewError}</p>}{effective&&<div className="effective-list"><p className="helper">Versión: v{effective.totem.playlist_version} · {effective.items.length} video(s) activo(s)</p>{effective.items.map((item,i)=><div className="effective-item" key={item.id}><span>{i+1}. {item.name}</span><span className={'source-tag '+item.source}>{item.source==='manual'?'Manual':'Programación automática'}</span></div>)}{!effective.items.length&&<p className="helper">Por ahora este tótem no tiene videos activos.</p>}</div>}
     </Section>
